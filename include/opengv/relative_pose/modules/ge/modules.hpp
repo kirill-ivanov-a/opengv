@@ -36,6 +36,8 @@
 #include <Eigen/Eigen>
 #include <Eigen/src/Core/util/DisableStupidWarnings.h>
 #include <opengv/types.hpp>
+#include "opengv/relative_pose/RelativeAdapterBase.hpp"
+#include "opengv/Indices.hpp"
 
 namespace opengv
 {
@@ -45,6 +47,9 @@ namespace modules
 {
 namespace ge
 {
+
+void getEV_raw(const RelativeAdapterBase &adapter, const Indices &indices,
+           const cayley_t &cayley, Eigen::Vector4d &roots);
 
 void getEV(
     const Eigen::Matrix3d & xxF,
@@ -64,6 +69,9 @@ void getEV(
     const Eigen::Matrix<double,9,9> & m22P,
     const cayley_t & cayley,
     Eigen::Vector4d & roots );
+
+double getCost_raw(const RelativeAdapterBase &adapter, const Indices &indices,
+               const cayley_t &cayley, int step);
 
 double getCost(
     const Eigen::Matrix3d & xxF,
@@ -104,6 +112,13 @@ double getCostWithJacobian(
     Eigen::Matrix<double,1,3> & jacobian,
     int step );
 
+void getQuickJacobian_raw(
+        const RelativeAdapterBase &adapter,
+        const Indices &indices,
+        const cayley_t &cayley,
+        double currentValue,
+        Eigen::Matrix<double, 1, 3> &jacobian, int step);
+
 void getQuickJacobian(
     const Eigen::Matrix3d & xxF,
     const Eigen::Matrix3d & yyF,
@@ -124,6 +139,11 @@ void getQuickJacobian(
     double currentValue,
     Eigen::Matrix<double,1,3> & jacobian,
     int step );
+
+Eigen::Matrix4d composeG_raw(
+        const RelativeAdapterBase &adapter,
+        const Indices &indices,
+        const cayley_t &cayley);
 
 Eigen::Matrix4d composeG(
     const Eigen::Matrix3d & xxF,

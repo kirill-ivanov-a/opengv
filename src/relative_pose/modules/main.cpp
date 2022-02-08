@@ -876,6 +876,153 @@ opengv::relative_pose::modules::ge_main(
 }
 
 void
+opengv::relative_pose::modules::ge_main2_raw(
+        const RelativeAdapterBase &adapter,
+        const Indices &indices,
+        const cayley_t & startingPoint,
+        geOutput_t & output )
+{
+    double lambda = 0.01;
+    double maxLambda = 0.08;
+    double modifier = 2.0;
+    int maxIterations = 50;
+    double min_xtol = 0.00001;
+    bool disablingIncrements = true;
+    bool print = false;
+
+    cayley_t cayley;
+
+    double disturbanceAmplitude = 0.3;
+    bool found = false;
+    int randomTrialCount = 0;
+
+    while( !found && randomTrialCount < 5 )
+    {
+        if(randomTrialCount > 2)
+            disturbanceAmplitude = 0.6;
+
+        if( randomTrialCount == 0 )
+            cayley = startingPoint;
+        else
+        {
+            cayley = startingPoint;
+            Eigen::Vector3d disturbance;
+            disturbance[0] = (((double) rand())/ ((double) RAND_MAX)-0.5)*2.0*disturbanceAmplitude;
+            disturbance[1] = (((double) rand())/ ((double) RAND_MAX)-0.5)*2.0*disturbanceAmplitude;
+            disturbance[2] = (((double) rand())/ ((double) RAND_MAX)-0.5)*2.0*disturbanceAmplitude;
+            cayley += disturbance;
+        }
+
+        lambda = 0.01;
+        int iterations = 0;
+        double smallestEV = ge::getCost_raw(adapter, indices, cayley,1);
+
+        while( iterations < maxIterations )
+        {
+            Eigen::Matrix<double,1,3> jacobian;
+            ge::getQuickJacobian_raw(adapter, indices, cayley,smallestEV,jacobian,1);
+
+            double norm = sqrt(pow(jacobian[0],2.0) + pow(jacobian[1],2.0) + pow(jacobian[2],2.0));
+            cayley_t normalizedJacobian = (1/norm) * jacobian.transpose();
+
+            cayley_t samplingPoint = cayley - lambda * normalizedJacobian;
+            double samplingEV = ge::getCost_raw(adapter, indices, samplingPoint,1);
+
+            if(print)
+            {
+                std::cout << iterations << ": " << samplingPoint.transpose();
+                std::cout << " lambda: " << lambda << " EV: " << samplingEV << std::endl;
+            }
+
+            if( iterations == 0 || !disablingIncrements )
+            {
+                while( samplingEV < smallestEV )
+                {
+                    smallestEV = samplingEV;
+                    if( lambda * modifier > maxLambda )
+                        break;
+                    lambda *= modifier;
+                    samplingPoint = cayley - lambda * normalizedJacobian;
+                    samplingEV = ge::getCost_raw(adapter, indices,samplingPoint,1);
+
+                    if(print)
+                    {
+                        std::cout << iterations << ": " << samplingPoint.transpose();
+                        std::cout << " lambda: " << lambda << " EV: " << samplingEV << std::endl;
+                    }
+                }
+            }
+
+            while( samplingEV > smallestEV )
+            {
+                lambda /= modifier;
+                samplingPoint = cayley - lambda * normalizedJacobian;
+                samplingEV = ge::getCost_raw(adapter, indices, samplingPoint,1);
+
+                if(print)
+                {
+                    std::cout << iterations << ": " << samplingPoint.transpose();
+                    std::cout << " lambda: " << lambda << " EV: " << samplingEV << std::endl;
+                }
+            }
+
+            //apply update
+            cayley = samplingPoint;
+            smallestEV = samplingEV;
+
+            //stopping condition (check if the update was too small)
+            if( lambda < min_xtol )
+                break;
+
+            iterations++;
+        }
+
+        //try to see if we can robustly identify each time we enter up in the wrong minimum
+        if( cayley.norm() < 0.01 )
+        {
+            //we are close to the origin, test the EV 2
+            double ev2 = ge::getCost_raw(adapter, indices, cayley,0);
+            if( ev2 > 0.001 )
+                randomTrialCount++;
+            else
+                found = true;
+        }
+        else
+            found = true;
+    }
+
+    Eigen::Matrix4d G = ge::composeG_raw(adapter, indices, cayley);
+
+    Eigen::EigenSolver< Eigen::Matrix4d > Eig(G,true);
+    Eigen::Matrix<std::complex<double>,4,1> D_complex = Eig.eigenvalues();
+    Eigen::Matrix<std::complex<double>,4,4> V_complex = Eig.eigenvectors();
+    Eigen::Vector4d D;
+    Eigen::Matrix4d V;
+
+    std::vector< myPair_ge, Eigen::aligned_allocator<myPair_ge> > pairs;
+    for(size_t i = 0; i < 4; i++) {
+        myPair_ge newPair;
+        newPair.second = D_complex[i].real();
+        for(size_t j = 0; j < 4; j++)
+            newPair.first(j,0) = V_complex(j,i).real();
+        pairs.push_back(newPair);
+    }
+    std::sort(pairs.begin(),pairs.end());
+    for(size_t i = 0; i < 4; i++) {
+        D[i] = pairs[i].second;
+        V.col(i) = pairs[i].first;
+    }
+
+    double factor = V(3,3);
+    Eigen::Vector4d t = (1.0/factor) * V.col(3);
+
+    output.translation = t;
+    output.rotation = math::cayley2rot(cayley);
+    output.eigenvalues = D;
+    output.eigenvectors = V;
+}
+
+void
 opengv::relative_pose::modules::ge_main2(
     const Eigen::Matrix3d & xxF,
     const Eigen::Matrix3d & yyF,

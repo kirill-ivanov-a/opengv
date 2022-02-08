@@ -36,6 +36,8 @@
 #include <Eigen/Eigen>
 #include <Eigen/src/Core/util/DisableStupidWarnings.h>
 #include <opengv/types.hpp>
+#include "opengv/relative_pose/RelativeAdapterBase.hpp"
+#include "opengv/Indices.hpp"
 
 namespace opengv
 {
@@ -100,6 +102,11 @@ void ge_main2(
     const Eigen::Matrix<double,9,9> & m11P,
     const Eigen::Matrix<double,9,9> & m12P,
     const Eigen::Matrix<double,9,9> & m22P,
+    const cayley_t & startingPoint,
+    geOutput_t & output );
+void ge_main2_raw(
+    const RelativeAdapterBase &adapter,
+    const Indices &indices,
     const cayley_t & startingPoint,
     geOutput_t & output );
 void ge_plot(

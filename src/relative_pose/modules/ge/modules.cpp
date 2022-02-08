@@ -33,6 +33,78 @@
 #include <opengv/math/cayley.hpp>
 #include <iostream>
 
+void opengv::relative_pose::modules::ge::getEV_raw(
+        const RelativeAdapterBase &adapter, const Indices &indices,
+        const cayley_t &cayley, Eigen::Vector4d &roots) {
+    Eigen::Matrix4d G = composeG_raw(adapter, indices, cayley);
+
+    // now compute the roots in closed-form
+    // double G00_2 = G(0,0) * G(0,0);
+    double G01_2 = G(0, 1) * G(0, 1);
+    double G02_2 = G(0, 2) * G(0, 2);
+    double G03_2 = G(0, 3) * G(0, 3);
+    // double G11_2 = G(1,1) * G(1,1);
+    double G12_2 = G(1, 2) * G(1, 2);
+    double G13_2 = G(1, 3) * G(1, 3);
+    // double G22_2 = G(2,2) * G(2,2);
+    double G23_2 = G(2, 3) * G(2, 3);
+    // double G33_2 = G(3,3) * G(3,3);
+
+    double B = -G(3, 3) - G(2, 2) - G(1, 1) - G(0, 0);
+    double C = -G23_2 + G(2, 2) * G(3, 3) - G13_2 - G12_2 + G(1, 1) * G(3, 3) +
+               G(1, 1) * G(2, 2) - G03_2 - G02_2 - G01_2 + G(0, 0) * G(3, 3) +
+               G(0, 0) * G(2, 2) + G(0, 0) * G(1, 1);
+    double D = G13_2 * G(2, 2) - 2.0 * G(1, 2) * G(1, 3) * G(2, 3) +
+               G12_2 * G(3, 3) + G(1, 1) * G23_2 - G(1, 1) * G(2, 2) * G(3, 3) +
+               G03_2 * G(2, 2) + G03_2 * G(1, 1) -
+               2.0 * G(0, 2) * G(0, 3) * G(2, 3) + G02_2 * G(3, 3) +
+               G02_2 * G(1, 1) - 2.0 * G(0, 1) * G(0, 3) * G(1, 3) -
+               2.0 * G(0, 1) * G(0, 2) * G(1, 2) + G01_2 * G(3, 3) +
+               G01_2 * G(2, 2) + G(0, 0) * G23_2 - G(0, 0) * G(2, 2) * G(3, 3) +
+               G(0, 0) * G13_2 + G(0, 0) * G12_2 - G(0, 0) * G(1, 1) * G(3, 3) -
+               G(0, 0) * G(1, 1) * G(2, 2);
+    double E =
+            G03_2 * G12_2 - G03_2 * G(1, 1) * G(2, 2) -
+            2.0 * G(0, 2) * G(0, 3) * G(1, 2) * G(1, 3) +
+            2.0 * G(0, 2) * G(0, 3) * G(1, 1) * G(2, 3) + G02_2 * G13_2 -
+            G02_2 * G(1, 1) * G(3, 3) + 2.0 * G(0, 1) * G(0, 3) * G(1, 3) * G(2, 2) -
+            2.0 * G(0, 1) * G(0, 3) * G(1, 2) * G(2, 3) -
+            2.0 * G(0, 1) * G(0, 2) * G(1, 3) * G(2, 3) +
+            2.0 * G(0, 1) * G(0, 2) * G(1, 2) * G(3, 3) + G01_2 * G23_2 -
+            G01_2 * G(2, 2) * G(3, 3) - G(0, 0) * G13_2 * G(2, 2) +
+            2.0 * G(0, 0) * G(1, 2) * G(1, 3) * G(2, 3) - G(0, 0) * G12_2 * G(3, 3) -
+            G(0, 0) * G(1, 1) * G23_2 + G(0, 0) * G(1, 1) * G(2, 2) * G(3, 3);
+
+    double B_pw2 = B * B;
+    double B_pw3 = B_pw2 * B;
+    double B_pw4 = B_pw3 * B;
+    double alpha = -0.375 * B_pw2 + C;
+    double beta = B_pw3 / 8.0 - B * C / 2.0 + D;
+    double gamma = -0.01171875 * B_pw4 + B_pw2 * C / 16.0 - B * D / 4.0 + E;
+    double alpha_pw2 = alpha * alpha;
+    double alpha_pw3 = alpha_pw2 * alpha;
+    double p = -alpha_pw2 / 12.0 - gamma;
+    double q = -alpha_pw3 / 108.0 + alpha * gamma / 3.0 - pow(beta, 2.0) / 8.0;
+    double helper1 = -pow(p, 3.0) / 27.0;
+    double theta2 = pow(helper1, (1.0 / 3.0));
+    double theta1 =
+            sqrt(theta2) * cos((1.0 / 3.0) * acos((-q / 2.0) / sqrt(helper1)));
+    double y = -(5.0 / 6.0) * alpha -
+               ((1.0 / 3.0) * p * theta1 - theta1 * theta2) / theta2;
+    double w = sqrt(alpha + 2.0 * y);
+
+    // we currently disable the computation of all other roots, they are not used
+    // roots[0] = -B/4.0 + 0.5*w + 0.5*sqrt(-3.0*alpha-2.0*y-2.0*beta/w);
+    // roots[1] = -B/4.0 + 0.5*w - 0.5*sqrt(-3.0*alpha-2.0*y-2.0*beta/w);
+    double temp1 = -B / 4.0 - 0.5 * w;
+    double temp2 = 0.5 * sqrt(-3.0 * alpha - 2.0 * y + 2.0 * beta / w);
+    // roots[2] = -B/4.0 - 0.5*w + 0.5*sqrt(-3.0*alpha-2.0*y+2.0*beta/w);
+    // roots[3] = -B/4.0 - 0.5*w - 0.5*sqrt(-3.0*alpha-2.0*y+2.0*beta/w); //this
+    // is the smallest one!
+    roots[2] = temp1 + temp2;
+    roots[3] = temp1 - temp2;
+}
+
 void
 opengv::relative_pose::modules::ge::getEV(
     const Eigen::Matrix3d & xxF,
@@ -97,6 +169,20 @@ opengv::relative_pose::modules::ge::getEV(
   //roots[3] = -B/4.0 - 0.5*w - 0.5*sqrt(-3.0*alpha-2.0*y+2.0*beta/w); //this is the smallest one!
   roots[2] = temp1 + temp2;
   roots[3] = temp1 - temp2;
+}
+
+double opengv::relative_pose::modules::ge::getCost_raw(
+        const RelativeAdapterBase &adapter, const Indices &indices,
+        const cayley_t &cayley, int step) {
+    Eigen::Vector4d roots;
+    getEV_raw(adapter, indices, cayley, roots);
+
+    double cost = 0.0;
+
+    if (step == 0) cost = roots[2];
+    if (step == 1) cost = roots[3];
+
+    return cost;
 }
 
 double
@@ -281,6 +367,20 @@ opengv::relative_pose::modules::ge::
   return cost;
 }
 
+void opengv::relative_pose::modules::ge::getQuickJacobian_raw(
+        const RelativeAdapterBase &adapter, const Indices &indices,
+        const cayley_t &cayley, double currentValue,
+        Eigen::Matrix<double, 1, 3> &jacobian, int step) {
+    double eps = 0.00000001;
+
+    for (int j = 0; j < 3; j++) {
+        cayley_t cayley_j = cayley;
+        cayley_j[j] += eps;
+        double cost_j = getCost_raw(adapter, indices, cayley_j, step);
+        jacobian(0, j) = (cost_j - currentValue);  // division by eps can be ommited
+    }
+}
+
 void
 opengv::relative_pose::modules::ge::getQuickJacobian(
     const Eigen::Matrix3d & xxF,
@@ -311,6 +411,40 @@ opengv::relative_pose::modules::ge::getQuickJacobian(
     double cost_j = getCost(xxF,yyF,zzF,xyF,yzF,zxF,x1P,y1P,z1P,x2P,y2P,z2P,m11P,m12P,m22P,cayley_j,step);
     jacobian(0,j) = (cost_j - currentValue); //division by eps can be ommited
   }
+}
+
+Eigen::Matrix4d opengv::relative_pose::modules::ge::composeG_raw(
+        const RelativeAdapterBase &adapter, const Indices &indices,
+        const cayley_t &cayley) {
+    Eigen::Matrix4d G = Eigen::Matrix4d::Zero();
+    opengv::rotation_t R = opengv::math::cayley2rot_reduced(cayley);  // 21, 15
+    auto numberCorrespondences = indices.size();
+
+    for (auto i = 0; i < numberCorrespondences; i++) {
+        opengv::bearingVector_t f1 = adapter.getCamRotation1(indices[i]) *
+                                     adapter.getBearingVector1(indices[i]);  // 9, 6
+        opengv::bearingVector_t f2 = adapter.getCamRotation2(indices[i]) *
+                                     adapter.getBearingVector2(indices[i]);  // 9, 6
+
+        Eigen::Vector3d t1 = adapter.getCamOffset1(indices[i]);
+        Eigen::Vector3d t2 = adapter.getCamOffset2(indices[i]);
+
+        Eigen::Vector4d g;
+        g.block<3, 1>(0, 0) = f1.cross(R * f2);               // 15, 9
+        g[3] = f1.transpose() * (t1.cross(R * f2) - R * t2.cross(f2));  // 33, 23
+
+        for (auto j = 0; j < g.size(); ++j)
+            for (auto k = j; k < g.size(); ++k) G(j, k) += g[j] * g[k];  // 10, 10
+
+        G(1, 0) = G(0, 1);
+        G(2, 0) = G(0, 2);
+        G(2, 1) = G(1, 2);
+        G(3, 0) = G(0, 3);
+        G(3, 1) = G(1, 3);
+        G(3, 2) = G(2, 3);
+    }
+
+    return G;
 }
 
 Eigen::Matrix4d

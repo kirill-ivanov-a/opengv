@@ -652,6 +652,51 @@ namespace opengv
 namespace relative_pose
 {
 
+rotation_t ge_raw(
+        const RelativeAdapterBase & adapter,
+        const Indices & indices,
+        geOutput_t & output,
+        bool useWeights )
+{
+    size_t numberCorrespondences = indices.size();
+    assert(numberCorrespondences > 5);
+
+
+    Eigen::Vector3d pointsCenter1 = Eigen::Vector3d::Zero();
+    Eigen::Vector3d pointsCenter2 = Eigen::Vector3d::Zero();
+
+    for( size_t i = 0; i < numberCorrespondences; ++i )
+    {
+        pointsCenter1 += adapter.getCamRotation1(indices[i]) *
+                         adapter.getBearingVector1(indices[i]);
+        pointsCenter2 += adapter.getCamRotation2(indices[i]) *
+                         adapter.getBearingVector2(indices[i]);
+    }
+
+    pointsCenter1 = pointsCenter1 / numberCorrespondences;
+    pointsCenter2 = pointsCenter2 / numberCorrespondences;
+
+    Eigen::MatrixXd Hcross(3,3);
+    Hcross = Eigen::Matrix3d::Zero();
+
+    for( size_t i = 0; i < numberCorrespondences; ++i )
+    {
+        Eigen::Vector3d f =      adapter.getCamRotation1(indices[i]) *
+                                 adapter.getBearingVector1(indices[i]) - pointsCenter1;
+        Eigen::Vector3d fprime = adapter.getCamRotation2(indices[i]) *
+                                 adapter.getBearingVector2(indices[i]) - pointsCenter2;
+        Hcross += fprime * f.transpose();
+    }
+
+    rotation_t startingRotation = math::arun(Hcross);
+
+    //Do minimization
+    modules::ge_main2_raw(
+            adapter, indices, math::rot2cayley(startingRotation), output);
+
+    return output.rotation;
+}
+
 rotation_t ge(
     const RelativeAdapterBase & adapter,
     const Indices & indices,
@@ -830,6 +875,17 @@ opengv::relative_pose::ge(
 {
   Indices idx(indices);
   return ge(adapter,idx,output,useWeights);
+}
+
+opengv::rotation_t
+opengv::relative_pose::ge_raw(
+        const RelativeAdapterBase & adapter,
+        const std::vector<int> & indices,
+        geOutput_t & output,
+        bool useWeights )
+{
+    Indices idx(indices);
+    return ge_raw(adapter,idx,output,useWeights);
 }
 
 opengv::rotation_t

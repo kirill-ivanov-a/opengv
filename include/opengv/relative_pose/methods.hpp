@@ -409,6 +409,26 @@ rotation_t ge(
 
 /**
  * \brief Compute the rotation matrix between two non-central viewpoints as an
+ *        iterative eigenproblem.
+ *
+ * \param[in] adapter Visitor holding bearing-vector correspondences, the multi-
+ *                    camera configuration, plus the initial rotation for the
+ *                    optimization.
+ * \param[in] indices Indices of the correspondences used for deriving
+ *                    the rotation matrix.
+ * \param[out] output Returns more complete information (position of viewpoint
+ *                    2 seen from viewpoint 1, eigenvectors and eigenvalues)
+ * \param[in] useWeights Use weights to weight the summation terms?
+ * \return Rotation matrix from viewpoint 2 to viewpoint 1.
+ */
+rotation_t ge_raw(
+        const RelativeAdapterBase & adapter,
+        const std::vector<int> & indices,
+        geOutput_t & output,
+        bool useWeights = false );
+
+/**
+ * \brief Compute the rotation matrix between two non-central viewpoints as an
  *        iterative eigenproblem. Using all available correspondences.
  *        Outputs only the rotation.
  *

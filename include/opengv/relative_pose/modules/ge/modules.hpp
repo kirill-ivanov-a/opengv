@@ -41,154 +41,166 @@
 
 namespace opengv
 {
-namespace relative_pose
-{
-namespace modules
-{
-namespace ge
-{
+    namespace relative_pose
+    {
+        namespace modules
+        {
+            namespace ge
+            {
 
-void getEV_raw(const RelativeAdapterBase &adapter, const Indices &indices,
-           const cayley_t &cayley, Eigen::Vector4d &roots);
+                void getEV_raw(
+                        const vector<bearingVector_t> &bv1,
+                        const vector<bearingVector_t> &bearing_vectors2,
+                        const vector<translation_t> &translation_vectors1,
+                        const vector<translation_t> &translation_vectors2,
+                        const cayley_t &cayley,
+                        Eigen::Vector4d &roots);
 
-void getEV(
-    const Eigen::Matrix3d & xxF,
-    const Eigen::Matrix3d & yyF,
-    const Eigen::Matrix3d & zzF,
-    const Eigen::Matrix3d & xyF,
-    const Eigen::Matrix3d & yzF,
-    const Eigen::Matrix3d & zxF,
-    const Eigen::Matrix<double,3,9> & x1P,
-    const Eigen::Matrix<double,3,9> & y1P,
-    const Eigen::Matrix<double,3,9> & z1P,
-    const Eigen::Matrix<double,3,9> & x2P,
-    const Eigen::Matrix<double,3,9> & y2P,
-    const Eigen::Matrix<double,3,9> & z2P,
-    const Eigen::Matrix<double,9,9> & m11P,
-    const Eigen::Matrix<double,9,9> & m12P,
-    const Eigen::Matrix<double,9,9> & m22P,
-    const cayley_t & cayley,
-    Eigen::Vector4d & roots );
+                void getEV(
+                        const Eigen::Matrix3d & xxF,
+                        const Eigen::Matrix3d & yyF,
+                        const Eigen::Matrix3d & zzF,
+                        const Eigen::Matrix3d & xyF,
+                        const Eigen::Matrix3d & yzF,
+                        const Eigen::Matrix3d & zxF,
+                        const Eigen::Matrix<double,3,9> & x1P,
+                        const Eigen::Matrix<double,3,9> & y1P,
+                        const Eigen::Matrix<double,3,9> & z1P,
+                        const Eigen::Matrix<double,3,9> & x2P,
+                        const Eigen::Matrix<double,3,9> & y2P,
+                        const Eigen::Matrix<double,3,9> & z2P,
+                        const Eigen::Matrix<double,9,9> & m11P,
+                        const Eigen::Matrix<double,9,9> & m12P,
+                        const Eigen::Matrix<double,9,9> & m22P,
+                        const cayley_t & cayley,
+                        Eigen::Vector4d & roots );
 
-double getCost_raw(const RelativeAdapterBase &adapter, const Indices &indices,
-               const cayley_t &cayley, int step);
+                double getCost_raw(
+                        const vector<bearingVector_t> &bearing_vectors1,
+                        const vector<bearingVector_t> &bearing_vectors2,
+                        const vector<translation_t> &translation_vectors1,
+                        const vector<translation_t> &translation_vectors2,
+                        const cayley_t &cayley, int step);
 
-double getCost(
-    const Eigen::Matrix3d & xxF,
-    const Eigen::Matrix3d & yyF,
-    const Eigen::Matrix3d & zzF,
-    const Eigen::Matrix3d & xyF,
-    const Eigen::Matrix3d & yzF,
-    const Eigen::Matrix3d & zxF,
-    const Eigen::Matrix<double,3,9> & x1P,
-    const Eigen::Matrix<double,3,9> & y1P,
-    const Eigen::Matrix<double,3,9> & z1P,
-    const Eigen::Matrix<double,3,9> & x2P,
-    const Eigen::Matrix<double,3,9> & y2P,
-    const Eigen::Matrix<double,3,9> & z2P,
-    const Eigen::Matrix<double,9,9> & m11P,
-    const Eigen::Matrix<double,9,9> & m12P,
-    const Eigen::Matrix<double,9,9> & m22P,
-    const cayley_t & cayley,
-    int step );
+                double getCost(
+                        const Eigen::Matrix3d & xxF,
+                        const Eigen::Matrix3d & yyF,
+                        const Eigen::Matrix3d & zzF,
+                        const Eigen::Matrix3d & xyF,
+                        const Eigen::Matrix3d & yzF,
+                        const Eigen::Matrix3d & zxF,
+                        const Eigen::Matrix<double,3,9> & x1P,
+                        const Eigen::Matrix<double,3,9> & y1P,
+                        const Eigen::Matrix<double,3,9> & z1P,
+                        const Eigen::Matrix<double,3,9> & x2P,
+                        const Eigen::Matrix<double,3,9> & y2P,
+                        const Eigen::Matrix<double,3,9> & z2P,
+                        const Eigen::Matrix<double,9,9> & m11P,
+                        const Eigen::Matrix<double,9,9> & m12P,
+                        const Eigen::Matrix<double,9,9> & m22P,
+                        const cayley_t & cayley,
+                        int step );
 
-double getCostWithJacobian(
-    const Eigen::Matrix3d & xxF,
-    const Eigen::Matrix3d & yyF,
-    const Eigen::Matrix3d & zzF,
-    const Eigen::Matrix3d & xyF,
-    const Eigen::Matrix3d & yzF,
-    const Eigen::Matrix3d & zxF,
-    const Eigen::Matrix<double,3,9> & x1P,
-    const Eigen::Matrix<double,3,9> & y1P,
-    const Eigen::Matrix<double,3,9> & z1P,
-    const Eigen::Matrix<double,3,9> & x2P,
-    const Eigen::Matrix<double,3,9> & y2P,
-    const Eigen::Matrix<double,3,9> & z2P,
-    const Eigen::Matrix<double,9,9> & m11P,
-    const Eigen::Matrix<double,9,9> & m12P,
-    const Eigen::Matrix<double,9,9> & m22P,
-    const cayley_t & cayley,
-    Eigen::Matrix<double,1,3> & jacobian,
-    int step );
+                double getCostWithJacobian(
+                        const Eigen::Matrix3d & xxF,
+                        const Eigen::Matrix3d & yyF,
+                        const Eigen::Matrix3d & zzF,
+                        const Eigen::Matrix3d & xyF,
+                        const Eigen::Matrix3d & yzF,
+                        const Eigen::Matrix3d & zxF,
+                        const Eigen::Matrix<double,3,9> & x1P,
+                        const Eigen::Matrix<double,3,9> & y1P,
+                        const Eigen::Matrix<double,3,9> & z1P,
+                        const Eigen::Matrix<double,3,9> & x2P,
+                        const Eigen::Matrix<double,3,9> & y2P,
+                        const Eigen::Matrix<double,3,9> & z2P,
+                        const Eigen::Matrix<double,9,9> & m11P,
+                        const Eigen::Matrix<double,9,9> & m12P,
+                        const Eigen::Matrix<double,9,9> & m22P,
+                        const cayley_t & cayley,
+                        Eigen::Matrix<double,1,3> & jacobian,
+                        int step );
 
-void getQuickJacobian_raw(
-        const RelativeAdapterBase &adapter,
-        const Indices &indices,
-        const cayley_t &cayley,
-        double currentValue,
-        Eigen::Matrix<double, 1, 3> &jacobian, int step);
+                void getQuickJacobian_raw(
+                        const vector<bearingVector_t> &bearing_vectors1,
+                        const vector<bearingVector_t> &bearing_vectors2,
+                        const vector<translation_t> &translation_vectors1,
+                        const vector<translation_t> &translation_vectors2,
+                        const cayley_t &cayley,
+                        double currentValue,
+                        Eigen::Matrix<double, 1, 3> &jacobian,
+                        int step);
 
-void getQuickJacobian(
-    const Eigen::Matrix3d & xxF,
-    const Eigen::Matrix3d & yyF,
-    const Eigen::Matrix3d & zzF,
-    const Eigen::Matrix3d & xyF,
-    const Eigen::Matrix3d & yzF,
-    const Eigen::Matrix3d & zxF,
-    const Eigen::Matrix<double,3,9> & x1P,
-    const Eigen::Matrix<double,3,9> & y1P,
-    const Eigen::Matrix<double,3,9> & z1P,
-    const Eigen::Matrix<double,3,9> & x2P,
-    const Eigen::Matrix<double,3,9> & y2P,
-    const Eigen::Matrix<double,3,9> & z2P,
-    const Eigen::Matrix<double,9,9> & m11P,
-    const Eigen::Matrix<double,9,9> & m12P,
-    const Eigen::Matrix<double,9,9> & m22P,
-    const cayley_t & cayley,
-    double currentValue,
-    Eigen::Matrix<double,1,3> & jacobian,
-    int step );
+                void getQuickJacobian(
+                        const Eigen::Matrix3d & xxF,
+                        const Eigen::Matrix3d & yyF,
+                        const Eigen::Matrix3d & zzF,
+                        const Eigen::Matrix3d & xyF,
+                        const Eigen::Matrix3d & yzF,
+                        const Eigen::Matrix3d & zxF,
+                        const Eigen::Matrix<double,3,9> & x1P,
+                        const Eigen::Matrix<double,3,9> & y1P,
+                        const Eigen::Matrix<double,3,9> & z1P,
+                        const Eigen::Matrix<double,3,9> & x2P,
+                        const Eigen::Matrix<double,3,9> & y2P,
+                        const Eigen::Matrix<double,3,9> & z2P,
+                        const Eigen::Matrix<double,9,9> & m11P,
+                        const Eigen::Matrix<double,9,9> & m12P,
+                        const Eigen::Matrix<double,9,9> & m22P,
+                        const cayley_t & cayley,
+                        double currentValue,
+                        Eigen::Matrix<double,1,3> & jacobian,
+                        int step );
 
-Eigen::Matrix4d composeG_raw(
-        const RelativeAdapterBase &adapter,
-        const Indices &indices,
-        const cayley_t &cayley);
+                Eigen::Matrix4d composeG_raw(
+                        const vector<bearingVector_t> &bearing_vectors1,
+                        const vector<bearingVector_t> &bearing_vectors2,
+                        const vector<translation_t> &translation_vectors1,
+                        const vector<translation_t> &translation_vectors2,
+                        const cayley_t &cayley);
 
-Eigen::Matrix4d composeG(
-    const Eigen::Matrix3d & xxF,
-    const Eigen::Matrix3d & yyF,
-    const Eigen::Matrix3d & zzF,
-    const Eigen::Matrix3d & xyF,
-    const Eigen::Matrix3d & yzF,
-    const Eigen::Matrix3d & zxF,
-    const Eigen::Matrix<double,3,9> & x1P,
-    const Eigen::Matrix<double,3,9> & y1P,
-    const Eigen::Matrix<double,3,9> & z1P,
-    const Eigen::Matrix<double,3,9> & x2P,
-    const Eigen::Matrix<double,3,9> & y2P,
-    const Eigen::Matrix<double,3,9> & z2P,
-    const Eigen::Matrix<double,9,9> & m11P,
-    const Eigen::Matrix<double,9,9> & m12P,
-    const Eigen::Matrix<double,9,9> & m22P,
-    const cayley_t & cayley);
+                Eigen::Matrix4d composeG(
+                        const Eigen::Matrix3d & xxF,
+                        const Eigen::Matrix3d & yyF,
+                        const Eigen::Matrix3d & zzF,
+                        const Eigen::Matrix3d & xyF,
+                        const Eigen::Matrix3d & yzF,
+                        const Eigen::Matrix3d & zxF,
+                        const Eigen::Matrix<double,3,9> & x1P,
+                        const Eigen::Matrix<double,3,9> & y1P,
+                        const Eigen::Matrix<double,3,9> & z1P,
+                        const Eigen::Matrix<double,3,9> & x2P,
+                        const Eigen::Matrix<double,3,9> & y2P,
+                        const Eigen::Matrix<double,3,9> & z2P,
+                        const Eigen::Matrix<double,9,9> & m11P,
+                        const Eigen::Matrix<double,9,9> & m12P,
+                        const Eigen::Matrix<double,9,9> & m22P,
+                        const cayley_t & cayley);
 
-Eigen::Matrix4d composeGwithJacobians(
-    const Eigen::Matrix3d & xxF,
-    const Eigen::Matrix3d & yyF,
-    const Eigen::Matrix3d & zzF,
-    const Eigen::Matrix3d & xyF,
-    const Eigen::Matrix3d & yzF,
-    const Eigen::Matrix3d & zxF,
-    const Eigen::Matrix<double,3,9> & x1P,
-    const Eigen::Matrix<double,3,9> & y1P,
-    const Eigen::Matrix<double,3,9> & z1P,
-    const Eigen::Matrix<double,3,9> & x2P,
-    const Eigen::Matrix<double,3,9> & y2P,
-    const Eigen::Matrix<double,3,9> & z2P,
-    const Eigen::Matrix<double,9,9> & m11P,
-    const Eigen::Matrix<double,9,9> & m12P,
-    const Eigen::Matrix<double,9,9> & m22P,
-    const cayley_t & cayley,
-    Eigen::Matrix4d & G_jac1,
-    Eigen::Matrix4d & G_jac2,
-    Eigen::Matrix4d & G_jac3 );
+                Eigen::Matrix4d composeGwithJacobians(
+                        const Eigen::Matrix3d & xxF,
+                        const Eigen::Matrix3d & yyF,
+                        const Eigen::Matrix3d & zzF,
+                        const Eigen::Matrix3d & xyF,
+                        const Eigen::Matrix3d & yzF,
+                        const Eigen::Matrix3d & zxF,
+                        const Eigen::Matrix<double,3,9> & x1P,
+                        const Eigen::Matrix<double,3,9> & y1P,
+                        const Eigen::Matrix<double,3,9> & z1P,
+                        const Eigen::Matrix<double,3,9> & x2P,
+                        const Eigen::Matrix<double,3,9> & y2P,
+                        const Eigen::Matrix<double,3,9> & z2P,
+                        const Eigen::Matrix<double,9,9> & m11P,
+                        const Eigen::Matrix<double,9,9> & m12P,
+                        const Eigen::Matrix<double,9,9> & m22P,
+                        const cayley_t & cayley,
+                        Eigen::Matrix4d & G_jac1,
+                        Eigen::Matrix4d & G_jac2,
+                        Eigen::Matrix4d & G_jac3 );
 
-}
-}
-}
+            }
+        }
+    }
 }
 
 #endif /* OPENGV_RELATIVE_POSE_MODULES_GE_MODULES_HPP_ */
-
-

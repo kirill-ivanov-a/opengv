@@ -599,19 +599,6 @@ namespace opengv {
             Eigen::Vector3d pointsCenter1 = Eigen::Vector3d::Zero();
             Eigen::Vector3d pointsCenter2 = Eigen::Vector3d::Zero();
 
-            for (size_t i = 0; i < numberCorrespondences; ++i) {
-                pointsCenter1 += adapter.getCamRotation1(indices[i]) *
-                                 adapter.getBearingVector1(indices[i]);
-                pointsCenter2 += adapter.getCamRotation2(indices[i]) *
-                                 adapter.getBearingVector2(indices[i]);
-            }
-
-            pointsCenter1 = pointsCenter1 / numberCorrespondences;
-            pointsCenter2 = pointsCenter2 / numberCorrespondences;
-
-            Eigen::MatrixXd Hcross(3, 3);
-            Hcross = Eigen::Matrix3d::Zero();
-
             vector<bearingVector_t> bearing_vectors1;
             vector<bearingVector_t> bearing_vectors2;
             vector<translation_t> translation_vectors1;
@@ -629,10 +616,19 @@ namespace opengv {
                                               adapter.getBearingVector2(indices[i]));
                 translation_vectors1.emplace_back(adapter.getCamOffset1(indices[i]));
                 translation_vectors2.emplace_back(adapter.getCamOffset2(indices[i]));
+                pointsCenter1 += bearing_vectors1[i];
+                pointsCenter2 += bearing_vectors2[i];
+            }
 
+            pointsCenter1 = pointsCenter1 / numberCorrespondences;
+            pointsCenter2 = pointsCenter2 / numberCorrespondences;
+
+            Eigen::MatrixXd Hcross(3, 3);
+            Hcross = Eigen::Matrix3d::Zero();
+
+            for (size_t i = 0; i < numberCorrespondences; ++i)
                 Hcross += (bearing_vectors2[i] - pointsCenter2) *
                           (bearing_vectors1[i] - pointsCenter1).transpose();
-            }
 
             rotation_t startingRotation = math::arun(Hcross);
 

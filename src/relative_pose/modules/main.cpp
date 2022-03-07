@@ -817,16 +817,16 @@ void opengv::relative_pose::modules::ge_main2_vec(
         const Eigen::Matrix<double, 3, 8, RowMajor> &tv2_cross_bv2,
         const cayley_t &startingPoint,
         geOutput_t &output) {
+    Eigen::Matrix3d inverse_hessian = Eigen::Matrix3d::Identity();
     double lambda = 0.01;
     double maxLambda = 0.08;
     double modifier = 2.0;
-    int maxIterations = 50;
+    int maxIterations = 35;
     double min_xtol = 0.00001;
     bool disablingIncrements = true;
     bool print = false;
 
     cayley_t cayley;
-
     double disturbanceAmplitude = 0.3;
     bool found = false;
     int randomTrialCount = 0;
@@ -845,85 +845,93 @@ void opengv::relative_pose::modules::ge_main2_vec(
                              disturbanceAmplitude;
             disturbance[2] = (((double) rand()) / ((double) RAND_MAX) - 0.5) * 2.0 *
                              disturbanceAmplitude;
-            cayley += disturbance;
+            cayley.noalias() += disturbance;
         }
 
-        lambda = 0.01;
         int iterations = 0;
+        lambda = 0.01;
+
         double smallestEV =
-                ge::getCost_vec(bv1, bv2,
-                                tv1, tv2_cross_bv2, cayley, 1);
+                ge::getCost_vec(bv1, bv2, tv1, tv2_cross_bv2, cayley, 1);
+        
+        Eigen::Vector3d jacobian;
+        ge::getQuickJacobian_vec(bv1, bv2, tv1, tv2_cross_bv2, cayley, smallestEV,
+                                 jacobian, 1);
+        jacobian.normalize();
 
         while (iterations < maxIterations) {
-            Eigen::Vector3d jacobian;
-            ge::getQuickJacobian_vec(bv1, bv2,
-                                     tv1, tv2_cross_bv2,
-                                     cayley, smallestEV, jacobian, 1);
+            Eigen::Vector3d search_direction = -inverse_hessian * jacobian;
+            search_direction.normalize();
 
-            double norm = sqrt(pow(jacobian[0], 2.0) + pow(jacobian[1], 2.0) +
-                               pow(jacobian[2], 2.0));
-            cayley_t normalizedJacobian = (1 / norm) * jacobian.transpose();
+            auto phi = jacobian.dot(search_direction);
 
-            cayley_t samplingPoint = cayley - lambda * normalizedJacobian;
-            double samplingEV = ge::getCost_vec(
-                    bv1, bv2, tv1,
-                    tv2_cross_bv2, samplingPoint, 1);
+            if ((phi > 0) || std::isnan(phi)) {
+                inverse_hessian = Matrix3d::Identity();
+                search_direction = -jacobian;
+            }
+
+            cayley_t next_cayley = cayley + lambda * search_direction;
+
+            double nextEV =
+                    ge::getCost_vec(bv1, bv2, tv1, tv2_cross_bv2, next_cayley, 1);
 
             if (print) {
-                std::cout << iterations << ": " << samplingPoint.transpose();
-                std::cout << " lambda: " << lambda << " EV: " << samplingEV
-                          << std::endl;
+                std::cout << iterations << ": " << next_cayley.transpose();
+                std::cout << " lambda: " << lambda << " EV: " << nextEV << std::endl;
             }
 
             if (iterations == 0 || !disablingIncrements) {
-                while (samplingEV < smallestEV) {
-                    smallestEV = samplingEV;
+                while (nextEV < smallestEV) {
+                    smallestEV = nextEV;
                     if (lambda * modifier > maxLambda) break;
                     lambda *= modifier;
-                    samplingPoint = cayley - lambda * normalizedJacobian;
-                    samplingEV = ge::getCost_vec(bv1, bv2,
-                                                 tv1,
-                                                 tv2_cross_bv2, samplingPoint, 1);
-
+                    next_cayley = cayley + lambda * search_direction;
+                    nextEV =
+                            ge::getCost_vec(bv1, bv2, tv1, tv2_cross_bv2, next_cayley, 1);
                     if (print) {
-                        std::cout << iterations << ": " << samplingPoint.transpose();
-                        std::cout << " lambda: " << lambda << " EV: " << samplingEV
+                        std::cout << iterations << ": " << next_cayley.transpose();
+                        std::cout << " lambda: " << lambda << " EV: " << nextEV
                                   << std::endl;
                     }
                 }
             }
 
-            while (samplingEV > smallestEV) {
+            while (nextEV > smallestEV) {
                 lambda /= modifier;
-                samplingPoint = cayley - lambda * normalizedJacobian;
-                samplingEV = ge::getCost_vec(bv1, bv2,
-                                             tv1, tv2_cross_bv2,
-                                             samplingPoint, 1);
-
+                next_cayley = cayley + lambda * search_direction;
+                nextEV = ge::getCost_vec(bv1, bv2, tv1, tv2_cross_bv2, next_cayley, 1);
                 if (print) {
-                    std::cout << iterations << ": " << samplingPoint.transpose();
-                    std::cout << " lambda: " << lambda << " EV: " << samplingEV
-                              << std::endl;
+                    std::cout << iterations << ": " << next_cayley.transpose();
+                    std::cout << " lambda: " << lambda << " EV: " << nextEV << std::endl;
                 }
             }
 
-            // apply update
-            cayley = samplingPoint;
-            smallestEV = samplingEV;
+            Eigen::Vector3d nextJacobian;
+            ge::getQuickJacobian_vec(bv1, bv2, tv1, tv2_cross_bv2, next_cayley,
+                                     nextEV, nextJacobian, 1);
+            nextJacobian.normalize();
 
-            // stopping condition (check if the update was too small)
+            const Eigen::Vector3d s = lambda * search_direction;
+            const Eigen::Vector3d y = nextJacobian - jacobian;
+            const double rho = 1.0 / (y.dot(s));
+
+            inverse_hessian = inverse_hessian -
+                              rho * (s * (y.transpose() * inverse_hessian) +
+                                     (inverse_hessian * y) * s.transpose()) +
+                              rho * (rho * (y).dot(inverse_hessian * y) + 1.0) *
+                              (s * s.transpose());
+
+            cayley = next_cayley;
+            smallestEV = nextEV;
+            jacobian.noalias() = nextJacobian;
+
             if (lambda < min_xtol) break;
-
-            iterations++;
+            ++iterations;
         }
 
-        // try to see if we can robustly identify each time we enter up in the wrong
-        // minimum
         if (cayley.norm() < 0.01) {
             // we are close to the origin, test the EV 2
-            double ev2 = ge::getCost_vec(bv1, bv2,
-                                         tv1, tv2_cross_bv2,
-                                         cayley, 0);
+            double ev2 = ge::getCost_vec(bv1, bv2, tv1, tv2_cross_bv2, cayley, 0);
             if (ev2 > 0.001)
                 randomTrialCount++;
             else
@@ -932,9 +940,8 @@ void opengv::relative_pose::modules::ge_main2_vec(
             found = true;
     }
 
-    Eigen::Matrix4d G =
-            ge::composeG_vec(bv1, bv2, tv1,
-                             tv2_cross_bv2, cayley);
+
+    Eigen::Matrix4d G = ge::composeG_vec(bv1, bv2, tv1, tv2_cross_bv2, cayley);
 
     Eigen::EigenSolver<Eigen::Matrix4d> Eig(G, true);
     Eigen::Matrix<std::complex<double>, 4, 1> D_complex = Eig.eigenvalues();

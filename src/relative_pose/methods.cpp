@@ -591,34 +591,56 @@ opengv::relative_pose::sixpt(
 namespace opengv {
     namespace relative_pose {
 
-        rotation_t ge_raw(const RelativeAdapterBase &adapter, const Indices &indices,
+        rotation_t ge_vec(const RelativeAdapterBase &adapter, const Indices &indices,
                           geOutput_t &output, bool useWeights) {
-            size_t numberCorrespondences = indices.size();
+            auto numberCorrespondences = indices.size();
             assert(numberCorrespondences > 5);
+            assert(numberCorrespondences % 4 == 0);
 
             Eigen::Vector3d pointsCenter1 = Eigen::Vector3d::Zero();
             Eigen::Vector3d pointsCenter2 = Eigen::Vector3d::Zero();
 
-            vector<bearingVector_t> bearing_vectors1;
-            vector<bearingVector_t> bearing_vectors2;
-            vector<translation_t> translation_vectors1;
-            vector<translation_t> translation_vectors2;
+            Eigen::Matrix<double, 3, 8, RowMajor> bv1;
+            Eigen::Matrix<double, 3, 8, RowMajor> bv2;
+            Eigen::Matrix<double, 3, 8, RowMajor> tv1;
+            Eigen::Matrix<double, 3, 8, RowMajor> tv2;
+            Eigen::Matrix<double, 3, 8, RowMajor> tv2_cross_bv2;
 
-            bearing_vectors1.reserve(8);
-            bearing_vectors2.reserve(8);
-            translation_vectors1.reserve(8);
-            translation_vectors2.reserve(8);
-
-            for (size_t i = 0; i < numberCorrespondences; ++i) {
-                bearing_vectors1.emplace_back(adapter.getCamRotation1(indices[i]) *
-                                              adapter.getBearingVector1(indices[i]));
-                bearing_vectors2.emplace_back(adapter.getCamRotation2(indices[i]) *
-                                              adapter.getBearingVector2(indices[i]));
-                translation_vectors1.emplace_back(adapter.getCamOffset1(indices[i]));
-                translation_vectors2.emplace_back(adapter.getCamOffset2(indices[i]));
-                pointsCenter1 += bearing_vectors1[i];
-                pointsCenter2 += bearing_vectors2[i];
+            for (auto i = 0; i < numberCorrespondences; ++i) {
+                bv1.block<3, 1>(0, i) = adapter.getCamRotation1(indices[i]) *
+                                        adapter.getBearingVector1(indices[i]);
+                bv2.block<3, 1>(0, i) = adapter.getCamRotation2(indices[i]) *
+                                        adapter.getBearingVector2(indices[i]);
+                tv1.block<3, 1>(0, i) = adapter.getCamOffset1(indices[i]);
+                tv2.block<3, 1>(0, i) = adapter.getCamOffset2(indices[i]);
+                pointsCenter1 += bv1.block<3, 1>(0, i);
+                pointsCenter2 += bv2.block<3, 1>(0, i);
             }
+
+            // compose tv2_cross_bv2 using intrinsics
+            for (auto i = 0; i < numberCorrespondences / 4; ++i) {
+                __m256d _tv_1 = _mm256_load_pd(tv1.data() + i * 4);
+                __m256d _tv_2 = _mm256_load_pd(tv1.data() + 8 + i * 4);
+                __m256d _tv_3 = _mm256_load_pd(tv1.data() + 16 + i * 4);
+
+                __m256d _b_1 = _mm256_load_pd(bv2.data() + i * 4);
+                __m256d _b_2 = _mm256_load_pd(bv2.data() + 8 + i * 4);
+                __m256d _b_3 = _mm256_load_pd(bv2.data() + 16 + i * 4);
+
+                __m256d _res1 = _mm256_mul_pd(_tv_3, _b_2);
+                _res1 = _mm256_fmsub_pd(_tv_2, _b_3, _res1);
+
+                __m256d _res2 = _mm256_mul_pd(_tv_1, _b_3);
+                _res2 = _mm256_fmsub_pd(_tv_3, _b_1, _res2);
+
+                __m256d _res3 = _mm256_mul_pd(_tv_2, _b_1);
+                _res3 = _mm256_fmsub_pd(_tv_1, _b_2, _res3);
+
+                _mm256_store_pd(tv2_cross_bv2.data() + i * 4, _res1);
+                _mm256_store_pd(tv2_cross_bv2.data() + 8 + i * 4, _res2);
+                _mm256_store_pd(tv2_cross_bv2.data() + 16 + i * 4, _res3);
+            }
+
 
             pointsCenter1 = pointsCenter1 / numberCorrespondences;
             pointsCenter2 = pointsCenter2 / numberCorrespondences;
@@ -626,15 +648,14 @@ namespace opengv {
             Eigen::MatrixXd Hcross(3, 3);
             Hcross = Eigen::Matrix3d::Zero();
 
-            for (size_t i = 0; i < numberCorrespondences; ++i)
-                Hcross += (bearing_vectors2[i] - pointsCenter2) *
-                          (bearing_vectors1[i] - pointsCenter1).transpose();
+            for (auto i = 0; i < numberCorrespondences; ++i)
+                Hcross += (bv2.block<3, 1>(0, i) - pointsCenter2) *
+                          (bv1.block<3, 1>(0, i) - pointsCenter1).transpose();
 
             rotation_t startingRotation = math::arun(Hcross);
 
             // Do minimization
-            modules::ge_main2_raw(bearing_vectors1, bearing_vectors2,
-                                  translation_vectors1, translation_vectors2,
+            modules::ge_main2_vec(bv1, bv2, tv1, tv2_cross_bv2,
                                   math::rot2cayley(startingRotation), output);
 
             return output.rotation;
@@ -812,13 +833,13 @@ opengv::relative_pose::ge(
 }
 
 opengv::rotation_t
-opengv::relative_pose::ge_raw(
+opengv::relative_pose::ge_vec(
         const RelativeAdapterBase &adapter,
         const std::vector<int> &indices,
         geOutput_t &output,
         bool useWeights) {
     Indices idx(indices);
-    return ge_raw(adapter, idx, output, useWeights);
+    return ge_vec(adapter, idx, output, useWeights);
 }
 
 opengv::rotation_t

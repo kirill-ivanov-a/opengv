@@ -32,15 +32,16 @@
 #include <opengv/math/cayley.hpp>
 #include <opengv/relative_pose/modules/ge/modules.hpp>
 
-void opengv::relative_pose::modules::ge::getEV_raw(
-        const vector<bearingVector_t> &bearing_vectors1,
-        const vector<bearingVector_t> &bearing_vectors2,
-        const vector<translation_t> &translation_vectors1,
-        const vector<translation_t> &translation_vectors2, const cayley_t &cayley,
+void opengv::relative_pose::modules::ge::getEV_vec(
+        const Eigen::Matrix<double, 3, 8, RowMajor> &bv1,
+        const Eigen::Matrix<double, 3, 8, RowMajor> &bv2,
+        const Eigen::Matrix<double, 3, 8, RowMajor> &tv1,
+        const Eigen::Matrix<double, 3, 8, RowMajor> &tv2_cross_bv2,
+        const cayley_t &cayley,
         Eigen::Vector4d &roots) {
     Eigen::Matrix4d G =
-            composeG_raw(bearing_vectors1, bearing_vectors2, translation_vectors1,
-                         translation_vectors2, cayley);
+            composeG_vec(bv1, bv2, tv1,
+                         tv2_cross_bv2, cayley);
 
     // now compute the roots in closed-form
     // double G00_2 = G(0,0) * G(0,0);
@@ -193,15 +194,15 @@ void opengv::relative_pose::modules::ge::getEV(
     roots[3] = temp1 - temp2;
 }
 
-double opengv::relative_pose::modules::ge::getCost_raw(
-        const vector<bearingVector_t> &bearing_vectors1,
-        const vector<bearingVector_t> &bearing_vectors2,
-        const vector<translation_t> &translation_vectors1,
-        const vector<translation_t> &translation_vectors2, const cayley_t &cayley,
-        int step) {
+double opengv::relative_pose::modules::ge::getCost_vec(
+        const Eigen::Matrix<double, 3, 8, RowMajor> &bv1,
+        const Eigen::Matrix<double, 3, 8, RowMajor> &bv2,
+        const Eigen::Matrix<double, 3, 8, RowMajor> &tv1,
+        const Eigen::Matrix<double, 3, 8, RowMajor> &tv2_cross_bv2,
+        const cayley_t &cayley, int step) {
     Eigen::Vector4d roots;
-    getEV_raw(bearing_vectors1, bearing_vectors2, translation_vectors1,
-              translation_vectors2, cayley, roots);
+    getEV_vec(bv1, bv2, tv1,
+              tv2_cross_bv2, cayley, roots);
 
     double cost = 0.0;
 
@@ -424,21 +425,21 @@ double opengv::relative_pose::modules::ge::getCostWithJacobian(
     return cost;
 }
 
-void opengv::relative_pose::modules::ge::getQuickJacobian_raw(
-        const vector<bearingVector_t> &bearing_vectors1,
-        const vector<bearingVector_t> &bearing_vectors2,
-        const vector<translation_t> &translation_vectors1,
-        const vector<translation_t> &translation_vectors2, const cayley_t &cayley,
-        double currentValue, Eigen::Matrix<double, 1, 3> &jacobian, int step) {
+void opengv::relative_pose::modules::ge::getQuickJacobian_vec(
+        const Eigen::Matrix<double, 3, 8, RowMajor> &bv1,
+        const Eigen::Matrix<double, 3, 8, RowMajor> &bv2,
+        const Eigen::Matrix<double, 3, 8, RowMajor> &tv1,
+        const Eigen::Matrix<double, 3, 8, RowMajor> &tv2_cross_bv2, const cayley_t &cayley,
+        double currentValue, Eigen::Vector3d &jacobian, int step) {
     double eps = 0.00000001;
 
     for (int j = 0; j < 3; j++) {
         cayley_t cayley_j = cayley;
         cayley_j[j] += eps;
         double cost_j =
-                getCost_raw(bearing_vectors1, bearing_vectors2, translation_vectors1,
-                            translation_vectors2, cayley_j, step);
-        jacobian(0, j) = (cost_j - currentValue);  // division by eps can be ommited
+                getCost_vec(bv1, bv2, tv1,
+                            tv2_cross_bv2, cayley_j, step);
+        jacobian(j) = (cost_j - currentValue);  // division by eps can be ommited
     }
 }
 
@@ -467,36 +468,71 @@ void opengv::relative_pose::modules::ge::getQuickJacobian(
     }
 }
 
-Eigen::Matrix4d opengv::relative_pose::modules::ge::composeG_raw(
-        const vector<bearingVector_t> &bearing_vectors1,
-        const vector<bearingVector_t> &bearing_vectors2,
-        const vector<translation_t> &translation_vectors1,
-        const vector<translation_t> &translation_vectors2, const cayley_t &cayley) {
-    Eigen::Matrix4d G = Eigen::Matrix4d::Zero();
-    opengv::rotation_t R = opengv::math::cayley2rot_reduced(cayley);  // 21, 15
+Eigen::Matrix4d opengv::relative_pose::modules::ge::composeG_vec(
+        const Eigen::Matrix<double, 3, 8, RowMajor> &bv1,
+        const Eigen::Matrix<double, 3, 8, RowMajor> &bv2,
+        const Eigen::Matrix<double, 3, 8, RowMajor> &tv1,
+        const Eigen::Matrix<double, 3, 8, RowMajor> &tv2_cross_bv2,
+        const cayley_t &cayley) {
+    Eigen::Matrix<double, 4, 8, RowMajor> g;
+    opengv::rotation_t R = opengv::math::cayley2rot_reduced(cayley);
 
-    for (auto i = 0; i < 8; ++i) {
-        Eigen::Vector4d g;
-        g.block<3, 1>(0, 0) =
-                bearing_vectors1[i].cross(R * bearing_vectors2[i]);  // 15, 9
-        g[3] = bearing_vectors1[i].transpose() *
-               (translation_vectors1[i].cross(R * bearing_vectors2[i]) -
-                R * translation_vectors2[i].cross(bearing_vectors2[i]));  // 33, 23
+    Eigen::Matrix<double, 3, 8, RowMajor> rot_bv2 = R * bv2;
+    Eigen::Matrix<double, 3, 8, RowMajor> rot_tv2_cross_bv2 = R * tv2_cross_bv2;
 
-        G += g * g.transpose();
-        //    for (auto j = 0; j < g.size(); ++j)
-        //      for (auto k = j; k < g.size(); ++k) G(j, k) += g[j] * g[k];  // 10,
-        //      10
-        //
-        //    G(1, 0) = G(0, 1);
-        //    G(2, 0) = G(0, 2);
-        //    G(2, 1) = G(1, 2);
-        //    G(3, 0) = G(0, 3);
-        //    G(3, 1) = G(1, 3);
-        //    G(3, 2) = G(2, 3);
+    for (auto i = 0; i < 2; ++i) {
+        __m256d _a_1 = _mm256_load_pd(tv1.data() + i * 4);
+        __m256d _a_2 = _mm256_load_pd(tv1.data() + 8 + i * 4);
+        __m256d _a_3 = _mm256_load_pd(tv1.data() + 16 + i * 4);
+
+        __m256d _b_1 = _mm256_load_pd(rot_bv2.data() + i * 4);
+        __m256d _b_2 = _mm256_load_pd(rot_bv2.data() + 8 + i * 4);
+        __m256d _b_3 = _mm256_load_pd(rot_bv2.data() + 16 + i * 4);
+
+        __m256d _bv1_1 = _mm256_load_pd(bv1.data() + i * 4);
+        __m256d _bv1_2 = _mm256_load_pd(bv1.data() + 8 + i * 4);
+        __m256d _bv1_3 = _mm256_load_pd(bv1.data() + 16 + i * 4);
+
+        __m256d _res1 = _mm256_mul_pd(_a_3, _b_2);
+        _res1 = _mm256_fmsub_pd(_a_2, _b_3, _res1);
+
+        __m256d _res2 = _mm256_mul_pd(_a_1, _b_3);
+        _res2 = _mm256_fmsub_pd(_a_3, _b_1, _res2);
+
+        __m256d _res3 = _mm256_mul_pd(_a_2, _b_1);
+        _res3 = _mm256_fmsub_pd(_a_1, _b_2, _res3);
+
+        __m256d _res = _mm256_mul_pd(_bv1_1, _res1);
+        _res = _mm256_fmadd_pd(_bv1_2, _res2, _res);
+        _res = _mm256_fmadd_pd(_bv1_3, _res3, _res);
+
+        _res1 = _mm256_mul_pd(_bv1_3, _b_2);
+        _res1 = _mm256_fmsub_pd(_bv1_2, _b_3, _res1);
+
+        _res2 = _mm256_mul_pd(_bv1_1, _b_3);
+        _res2 = _mm256_fmsub_pd(_bv1_3, _b_1, _res2);
+
+        _res3 = _mm256_mul_pd(_bv1_2, _b_1);
+        _res3 = _mm256_fmsub_pd(_bv1_1, _b_2, _res3);
+
+        _mm256_store_pd(g.data() + i * 4, _res1);
+        _mm256_store_pd(g.data() + 8 + i * 4, _res2);
+        _mm256_store_pd(g.data() + 16 + i * 4, _res3);
+
+        _a_1 = _mm256_load_pd(rot_tv2_cross_bv2.data() + i * 4);
+        _a_2 = _mm256_load_pd(rot_tv2_cross_bv2.data() + 8 + i * 4);
+        _a_3 = _mm256_load_pd(rot_tv2_cross_bv2.data() + 16 + i * 4);
+
+        __m256d _res_2 = _mm256_mul_pd(_bv1_1, _a_1);
+        _res_2 = _mm256_fmadd_pd(_bv1_2, _a_2, _res_2);
+        _res_2 = _mm256_fmadd_pd(_bv1_3, _a_3, _res_2);
+
+        _res = _mm256_sub_pd(_res, _res_2);
+
+        _mm256_store_pd(g.data() + 24 + i * 4, _res);
     }
 
-    return G;
+    return g * g.transpose();
 }
 
 Eigen::Matrix4d opengv::relative_pose::modules::ge::composeG(

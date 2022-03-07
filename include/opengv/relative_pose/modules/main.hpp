@@ -108,13 +108,13 @@ namespace opengv {
                     const cayley_t &startingPoint,
                     geOutput_t &output);
 
-            void ge_main2_raw(
-                    const vector<bearingVector_t> &bearing_vectors1,
-                    const vector<bearingVector_t> &bearing_vectors2,
-                    const vector<translation_t> &translation_vectors1,
-                    const vector<translation_t> &translation_vectors2,
-                    const cayley_t &startingPoint,
-                    geOutput_t &output);
+            void ge_main2_vec(
+                    const Eigen::Matrix<double, 3, 8, RowMajor> &bv1,
+                    const Eigen::Matrix<double, 3, 8, RowMajor> &bv2,
+                    const Eigen::Matrix<double, 3, 8, RowMajor> &tv1,
+                    const Eigen::Matrix<double, 3, 8, RowMajor> &tv2_cross_bv2,
+                    const cayley_t & startingPoint,
+                    geOutput_t & output );
 
             void ge_plot(
                     const Eigen::Matrix3d &xxF,

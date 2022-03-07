@@ -810,12 +810,13 @@ void opengv::relative_pose::modules::ge_main(
     output.eigenvectors = V;
 }
 
-void opengv::relative_pose::modules::ge_main2_raw(
-        const vector<bearingVector_t> &bearing_vectors1,
-        const vector<bearingVector_t> &bearing_vectors2,
-        const vector<translation_t> &translation_vectors1,
-        const vector<translation_t> &translation_vectors2,
-        const cayley_t &startingPoint, geOutput_t &output) {
+void opengv::relative_pose::modules::ge_main2_vec(
+        const Eigen::Matrix<double, 3, 8, RowMajor> &bv1,
+        const Eigen::Matrix<double, 3, 8, RowMajor> &bv2,
+        const Eigen::Matrix<double, 3, 8, RowMajor> &tv1,
+        const Eigen::Matrix<double, 3, 8, RowMajor> &tv2_cross_bv2,
+        const cayley_t &startingPoint,
+        geOutput_t &output) {
     double lambda = 0.01;
     double maxLambda = 0.08;
     double modifier = 2.0;
@@ -838,11 +839,11 @@ void opengv::relative_pose::modules::ge_main2_raw(
         else {
             cayley = startingPoint;
             Eigen::Vector3d disturbance;
-            disturbance[0] = (((double)rand()) / ((double)RAND_MAX) - 0.5) * 2.0 *
+            disturbance[0] = (((double) rand()) / ((double) RAND_MAX) - 0.5) * 2.0 *
                              disturbanceAmplitude;
-            disturbance[1] = (((double)rand()) / ((double)RAND_MAX) - 0.5) * 2.0 *
+            disturbance[1] = (((double) rand()) / ((double) RAND_MAX) - 0.5) * 2.0 *
                              disturbanceAmplitude;
-            disturbance[2] = (((double)rand()) / ((double)RAND_MAX) - 0.5) * 2.0 *
+            disturbance[2] = (((double) rand()) / ((double) RAND_MAX) - 0.5) * 2.0 *
                              disturbanceAmplitude;
             cayley += disturbance;
         }
@@ -850,13 +851,13 @@ void opengv::relative_pose::modules::ge_main2_raw(
         lambda = 0.01;
         int iterations = 0;
         double smallestEV =
-                ge::getCost_raw(bearing_vectors1, bearing_vectors2,
-                                translation_vectors1, translation_vectors2, cayley, 1);
+                ge::getCost_vec(bv1, bv2,
+                                tv1, tv2_cross_bv2, cayley, 1);
 
         while (iterations < maxIterations) {
-            Eigen::Matrix<double, 1, 3> jacobian;
-            ge::getQuickJacobian_raw(bearing_vectors1, bearing_vectors2,
-                                     translation_vectors1, translation_vectors2,
+            Eigen::Vector3d jacobian;
+            ge::getQuickJacobian_vec(bv1, bv2,
+                                     tv1, tv2_cross_bv2,
                                      cayley, smallestEV, jacobian, 1);
 
             double norm = sqrt(pow(jacobian[0], 2.0) + pow(jacobian[1], 2.0) +
@@ -864,9 +865,9 @@ void opengv::relative_pose::modules::ge_main2_raw(
             cayley_t normalizedJacobian = (1 / norm) * jacobian.transpose();
 
             cayley_t samplingPoint = cayley - lambda * normalizedJacobian;
-            double samplingEV = ge::getCost_raw(
-                    bearing_vectors1, bearing_vectors2, translation_vectors1,
-                    translation_vectors2, samplingPoint, 1);
+            double samplingEV = ge::getCost_vec(
+                    bv1, bv2, tv1,
+                    tv2_cross_bv2, samplingPoint, 1);
 
             if (print) {
                 std::cout << iterations << ": " << samplingPoint.transpose();
@@ -880,9 +881,9 @@ void opengv::relative_pose::modules::ge_main2_raw(
                     if (lambda * modifier > maxLambda) break;
                     lambda *= modifier;
                     samplingPoint = cayley - lambda * normalizedJacobian;
-                    samplingEV = ge::getCost_raw(bearing_vectors1, bearing_vectors2,
-                                                 translation_vectors1,
-                                                 translation_vectors2, samplingPoint, 1);
+                    samplingEV = ge::getCost_vec(bv1, bv2,
+                                                 tv1,
+                                                 tv2_cross_bv2, samplingPoint, 1);
 
                     if (print) {
                         std::cout << iterations << ": " << samplingPoint.transpose();
@@ -895,8 +896,8 @@ void opengv::relative_pose::modules::ge_main2_raw(
             while (samplingEV > smallestEV) {
                 lambda /= modifier;
                 samplingPoint = cayley - lambda * normalizedJacobian;
-                samplingEV = ge::getCost_raw(bearing_vectors1, bearing_vectors2,
-                                             translation_vectors1, translation_vectors2,
+                samplingEV = ge::getCost_vec(bv1, bv2,
+                                             tv1, tv2_cross_bv2,
                                              samplingPoint, 1);
 
                 if (print) {
@@ -920,8 +921,8 @@ void opengv::relative_pose::modules::ge_main2_raw(
         // minimum
         if (cayley.norm() < 0.01) {
             // we are close to the origin, test the EV 2
-            double ev2 = ge::getCost_raw(bearing_vectors1, bearing_vectors2,
-                                         translation_vectors1, translation_vectors2,
+            double ev2 = ge::getCost_vec(bv1, bv2,
+                                         tv1, tv2_cross_bv2,
                                          cayley, 0);
             if (ev2 > 0.001)
                 randomTrialCount++;
@@ -932,8 +933,8 @@ void opengv::relative_pose::modules::ge_main2_raw(
     }
 
     Eigen::Matrix4d G =
-            ge::composeG_raw(bearing_vectors1, bearing_vectors2, translation_vectors1,
-                             translation_vectors2, cayley);
+            ge::composeG_vec(bv1, bv2, tv1,
+                             tv2_cross_bv2, cayley);
 
     Eigen::EigenSolver<Eigen::Matrix4d> Eig(G, true);
     Eigen::Matrix<std::complex<double>, 4, 1> D_complex = Eig.eigenvalues();
@@ -1006,11 +1007,11 @@ void opengv::relative_pose::modules::ge_main2(
         else {
             cayley = startingPoint;
             Eigen::Vector3d disturbance;
-            disturbance[0] = (((double)rand()) / ((double)RAND_MAX) - 0.5) * 2.0 *
+            disturbance[0] = (((double) rand()) / ((double) RAND_MAX) - 0.5) * 2.0 *
                              disturbanceAmplitude;
-            disturbance[1] = (((double)rand()) / ((double)RAND_MAX) - 0.5) * 2.0 *
+            disturbance[1] = (((double) rand()) / ((double) RAND_MAX) - 0.5) * 2.0 *
                              disturbanceAmplitude;
-            disturbance[2] = (((double)rand()) / ((double)RAND_MAX) - 0.5) * 2.0 *
+            disturbance[2] = (((double) rand()) / ((double) RAND_MAX) - 0.5) * 2.0 *
                              disturbanceAmplitude;
             cayley += disturbance;
         }

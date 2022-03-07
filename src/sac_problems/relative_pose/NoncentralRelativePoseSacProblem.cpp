@@ -58,9 +58,9 @@ relative_pose::NoncentralRelativePoseSacProblem::computeModelCoefficients(
                 outModel.col(3) = output2.translation.block<3, 1>(0, 0);
                 break;
             }
-            case GE_RAW: {
+            case GE_VEC: {
                 geOutput_t output2;
-                opengv::relative_pose::ge_raw(_adapter, indices, output2);
+                opengv::relative_pose::ge_vec(_adapter, indices, output2);
 
                 outModel.block<3, 3>(0, 0) = output2.rotation;
                 outModel.col(3) = output2.translation.block<3, 1>(0, 0);
@@ -286,6 +286,10 @@ relative_pose::NoncentralRelativePoseSacProblem::getSampleSize() const {
                 break;
             }
             case GE: {
+                sampleSize = 8;
+                break;
+            }
+            case GE_VEC: {
                 sampleSize = 8;
                 break;
             }

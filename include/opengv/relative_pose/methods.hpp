@@ -421,7 +421,7 @@ rotation_t ge(
  * \param[in] useWeights Use weights to weight the summation terms?
  * \return Rotation matrix from viewpoint 2 to viewpoint 1.
  */
-rotation_t ge_raw(
+rotation_t ge_vec(
         const RelativeAdapterBase & adapter,
         const std::vector<int> & indices,
         geOutput_t & output,

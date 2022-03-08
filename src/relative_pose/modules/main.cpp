@@ -853,7 +853,7 @@ void opengv::relative_pose::modules::ge_main2_vec(
 
         double smallestEV =
                 ge::getCost_vec(bv1, bv2, tv1, tv2_cross_bv2, cayley, 1);
-        
+
         Eigen::Vector3d jacobian;
         ge::getQuickJacobian_vec(bv1, bv2, tv1, tv2_cross_bv2, cayley, smallestEV,
                                  jacobian, 1);

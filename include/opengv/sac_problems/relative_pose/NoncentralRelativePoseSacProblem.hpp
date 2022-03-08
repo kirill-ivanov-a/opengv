@@ -80,7 +80,7 @@ public:
     SIXPT = 0,       // [16]
     GE = 1,          // []
     SEVENTEENPT = 2, // [12]
-    GE_RAW = 3
+    GE_VEC = 3
   } algorithm_t;
 
   /**

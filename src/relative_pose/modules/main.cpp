@@ -823,7 +823,7 @@ void opengv::relative_pose::modules::ge_main2_vec(
     double modifier = 2.0;
     int maxIterations = 35;
     double min_xtol = 0.00001;
-    bool disablingIncrements = true;
+    bool disablingIncrements = false;
     bool print = false;
 
     cayley_t cayley;
@@ -870,6 +870,7 @@ void opengv::relative_pose::modules::ge_main2_vec(
                 search_direction = -jacobian;
             }
 
+            lambda = 0.01;
             cayley_t next_cayley = cayley + lambda * search_direction;
 
             double nextEV =
@@ -915,11 +916,11 @@ void opengv::relative_pose::modules::ge_main2_vec(
             const Eigen::Vector3d y = nextJacobian - jacobian;
             const double rho = 1.0 / (y.dot(s));
 
-            inverse_hessian = inverse_hessian -
-                              rho * (s * (y.transpose() * inverse_hessian) +
-                                     (inverse_hessian * y) * s.transpose()) +
-                              rho * (rho * (y).dot(inverse_hessian * y) + 1.0) *
-                              (s * s.transpose());
+            inverse_hessian.noalias() = inverse_hessian -
+                                        rho * (s * (y.transpose() * inverse_hessian) +
+                                               (inverse_hessian * y) * s.transpose()) +
+                                        rho * (rho * (y).dot(inverse_hessian * y) + 1.0) *
+                                        (s * s.transpose());
 
             cayley = next_cayley;
             smallestEV = nextEV;

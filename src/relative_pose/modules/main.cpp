@@ -818,10 +818,10 @@ void opengv::relative_pose::modules::ge_main2_vec(
         const cayley_t &startingPoint,
         geOutput_t &output) {
     Eigen::Matrix3d inverse_hessian = Eigen::Matrix3d::Identity();
-    double lambda = 0.01;
-    double maxLambda = 0.08;
+    double lambda = 0.017;
+    double maxLambda = 0.07;
     double modifier = 2.0;
-    int maxIterations = 35;
+    int maxIterations = 11;
     double min_xtol = 0.00001;
     bool disablingIncrements = false;
     bool print = false;
@@ -849,7 +849,7 @@ void opengv::relative_pose::modules::ge_main2_vec(
         }
 
         int iterations = 0;
-        lambda = 0.01;
+        lambda = 0.017;
 
         double smallestEV =
                 ge::getCost_vec(bv1, bv2, tv1, tv2_cross_bv2, cayley, 1);
@@ -870,7 +870,7 @@ void opengv::relative_pose::modules::ge_main2_vec(
                 search_direction = -jacobian;
             }
 
-            lambda = 0.01;
+            lambda = 0.017;
             cayley_t next_cayley = cayley + lambda * search_direction;
 
             double nextEV =

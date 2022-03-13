@@ -821,7 +821,7 @@ void opengv::relative_pose::modules::ge_main2_vec(
     double lambda = 0.017;
     double maxLambda = 0.07;
     double modifier = 2.0;
-    int maxIterations = 11;
+    int maxIterations = 12;
     double min_xtol = 0.00001;
     bool disablingIncrements = false;
     bool print = false;

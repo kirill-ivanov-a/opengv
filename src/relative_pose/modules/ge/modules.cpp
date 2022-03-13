@@ -37,12 +37,8 @@ void opengv::relative_pose::modules::ge::getEV_vec(
         const Eigen::Matrix<double, 3, 8, RowMajor> &bv2,
         const Eigen::Matrix<double, 3, 8, RowMajor> &tv1,
         const Eigen::Matrix<double, 3, 8, RowMajor> &tv2_cross_bv2,
-        const cayley_t &cayley,
-        Eigen::Vector4d &roots) {
-    Eigen::Matrix4d G =
-            composeG_vec(bv1, bv2, tv1,
-                         tv2_cross_bv2, cayley);
-
+        const cayley_t &cayley, Eigen::Vector4d &roots) {
+    Eigen::Matrix4d G = composeG_vec(bv1, bv2, tv1, tv2_cross_bv2, cayley);
     // now compute the roots in closed-form
     // double G00_2 = G(0,0) * G(0,0);
     double G01_2 = G(0, 1) * G(0, 1);
@@ -89,11 +85,12 @@ void opengv::relative_pose::modules::ge::getEV_vec(
     double alpha_pw2 = alpha * alpha;
     double alpha_pw3 = alpha_pw2 * alpha;
     double p = -alpha_pw2 / 12.0 - gamma;
-    double q = -alpha_pw3 / 108.0 + alpha * gamma / 3.0 - pow(beta, 2.0) / 8.0;
-    double helper1 = -pow(p, 3.0) / 27.0;
-    double theta2 = pow(helper1, (1.0 / 3.0));
-    double theta1 =
-            sqrt(theta2) * cos((1.0 / 3.0) * acos((-q / 2.0) / sqrt(helper1)));
+    double q = -alpha_pw3 / 108.0 + alpha * gamma / 3.0 - beta * beta / 8.0;
+    //  double helper1 = -pow(p, 3.0) / 27.0;
+    double theta2 = -p / 3.0;
+    //  double theta2 = pow(helper1, (1.0 / 3.0));
+    double theta1 = sqrt(theta2) *
+                    cos((1.0 / 3.0) * acos((-q / 2.0) / sqrt(-p * p * p / 27.0)));
     double y = -(5.0 / 6.0) * alpha -
                ((1.0 / 3.0) * p * theta1 - theta1 * theta2) / theta2;
     double w = sqrt(alpha + 2.0 * y);

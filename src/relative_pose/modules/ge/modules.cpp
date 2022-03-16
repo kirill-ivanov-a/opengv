@@ -1030,3 +1030,182 @@ opengv::relative_pose::modules::ge::composeGwithJacobians(
 
   return G;
 }
+
+Eigen::Vector2d opengv::relative_pose::modules::ge::getEigenvaluesFast(
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv1,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv2,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv1,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv2CrossBv2,
+    const cayley_t & cayley )
+{
+  Eigen::Matrix4d G = composeGFast(bv1, bv2, tv1, tv2CrossBv2, cayley);
+
+  // now compute the roots in closed-form
+  double G01_2 = G(0, 1) * G(0, 1);
+  double G02_2 = G(0, 2) * G(0, 2);
+  double G03_2 = G(0, 3) * G(0, 3);
+  double G12_2 = G(1, 2) * G(1, 2);
+  double G13_2 = G(1, 3) * G(1, 3);
+  double G23_2 = G(2, 3) * G(2, 3);
+
+  const double B = -G.trace();
+  const double C = -G23_2 + G(3, 3) * (G(2, 2) + G(1, 1) + G(0, 0)) - G13_2 -
+                   G12_2 + G(1, 1) * G(2, 2) - G03_2 - G02_2 - G01_2 +
+                   G(0, 0) * (G(2, 2) + G(1, 1));
+  const double D =
+          G13_2 * G(2, 2) - 2.0 * G(1, 2) * G(1, 3) * G(2, 3) -
+          2.0 * G(0, 1) * G(0, 2) * G(1, 2) - 2.0 * G(0, 2) * G(0, 3) * G(2, 3) -
+          2.0 * G(0, 1) * G(0, 3) * G(1, 3) + G(1, 1) * G23_2 -
+          G(1, 1) * G(2, 2) * G(3, 3) + G03_2 * G(2, 2) + G03_2 * G(1, 1) +
+          G02_2 * G(3, 3) + G02_2 * G(1, 1) + G01_2 * G(3, 3) + G01_2 * G(2, 2) +
+          G(0, 0) * G23_2 - G(0, 0) * G(2, 2) * G(3, 3) + G(0, 0) * G13_2 +
+          G(0, 0) * G12_2 - G(0, 0) * G(1, 1) * G(3, 3) -
+          G(0, 0) * G(1, 1) * G(2, 2) + G12_2 * G(3, 3);
+
+  const double E = G.determinant();
+
+  double B_pw2 = B * B;
+  double B_pw3 = B_pw2 * B;
+  double B_pw4 = B_pw3 * B;
+  double alpha = -0.375 * B_pw2 + C;
+  double beta = B_pw3 / 8.0 - B * C / 2.0 + D;
+  double gamma = -0.01171875 * B_pw4 + B_pw2 * C / 16.0 - B * D / 4.0 + E;
+  double alpha_pw2 = alpha * alpha;
+  double alpha_pw3 = alpha_pw2 * alpha;
+  double p = -alpha_pw2 / 12.0 - gamma;
+  double q = -alpha_pw3 / 108.0 + alpha * gamma / 3.0 - beta * beta / 8.0;
+
+  double theta2 = -p / 3.0;
+  double theta1 = sqrt(theta2) *
+                  cos((1.0 / 3.0) * acos((-q / 2.0) / sqrt(-p * p * p / 27.0)));
+  double y = -(5.0 / 6.0) * alpha -
+             ((1.0 / 3.0) * p * theta1 - theta1 * theta2) / theta2;
+  double w = sqrt(alpha + 2.0 * y);
+
+  // we currently disable the computation of all other roots, they are not used
+  double temp1 = -B / 4.0 - 0.5 * w;
+  double temp2 = 0.5 * sqrt(-3.0 * alpha - 2.0 * y + 2.0 * beta / w);
+
+  Eigen::Vector2d roots;
+  roots[0] = temp1 + temp2;
+  roots[1] = temp1 - temp2;
+  return roots;
+}
+
+double opengv::relative_pose::modules::ge::getCostFast(
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv1,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv2,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv1,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv2CrossBv2,
+    const cayley_t & cayley,
+    int step )
+{
+  Eigen::Vector2d roots =
+      getEigenvaluesFast(bv1, bv2, tv1, tv2CrossBv2, cayley);
+
+  if (step == 0) return roots[0];
+  if (step == 1) return roots[1];
+
+  return 0;
+}
+
+Eigen::Vector3d opengv::relative_pose::modules::ge::getJacobianFast(
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv1,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv2,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv1,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv2CrossBv2,
+    const cayley_t & cayley,
+    double currentValue,
+    int step )
+{
+  Eigen::Vector3d jacobian;
+  double eps = 0.00000001;
+
+  for (int j = 0; j < 3; j++)
+  {
+    cayley_t cayley_j = cayley;
+    cayley_j(j) += eps;
+    double cost_j = getCostFast(bv1, bv2, tv1, tv2CrossBv2, cayley_j, step);
+    jacobian(j) = cost_j - currentValue;  // division by eps can be ommited
+  }
+  return jacobian;
+}
+
+Eigen::Matrix4d opengv::relative_pose::modules::ge::composeGFast(
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv1,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv2,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv1,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv2CrossBv2,
+    const cayley_t & cayley )
+{
+  opengv::rotation_t R = opengv::math::cayley2rot_reduced(cayley);
+
+  Eigen::Matrix<double, 3, 8, Eigen::RowMajor> rotBv2 = R * bv2;
+  Eigen::Matrix<double, 3, 8, Eigen::RowMajor> rotTv2CrossBv2 = R * tv2CrossBv2;
+
+  Eigen::Matrix<double, 4, 8, Eigen::RowMajor> g;
+  for (auto i = 0; i < 2; ++i) {
+    __m256d _a_1 = _mm256_load_pd(tv1.data() + i * 4);
+    __m256d _a_2 = _mm256_load_pd(tv1.data() + 8 + i * 4);
+    __m256d _a_3 = _mm256_load_pd(tv1.data() + 16 + i * 4);
+
+    __m256d _b_1 = _mm256_load_pd(rotBv2.data() + i * 4);
+    __m256d _b_2 = _mm256_load_pd(rotBv2.data() + 8 + i * 4);
+    __m256d _b_3 = _mm256_load_pd(rotBv2.data() + 16 + i * 4);
+
+    __m256d _bv1_1 = _mm256_load_pd(bv1.data() + i * 4);
+    __m256d _bv1_2 = _mm256_load_pd(bv1.data() + 8 + i * 4);
+    __m256d _bv1_3 = _mm256_load_pd(bv1.data() + 16 + i * 4);
+
+    // tv1 cross rotBv2
+    __m256d _res1 = _mm256_mul_pd(_a_3, _b_2);
+    _res1 = _mm256_fmsub_pd(_a_2, _b_3, _res1);
+
+    __m256d _res2 = _mm256_mul_pd(_a_1, _b_3);
+    _res2 = _mm256_fmsub_pd(_a_3, _b_1, _res2);
+
+    __m256d _res3 = _mm256_mul_pd(_a_2, _b_1);
+    _res3 = _mm256_fmsub_pd(_a_1, _b_2, _res3);
+
+    // bv1 dot tv1CrossRotBv2
+
+    __m256d _bv1DotTv1CrossRotBv2 = _mm256_mul_pd(_bv1_1, _res1);
+    _bv1DotTv1CrossRotBv2 =
+            _mm256_fmadd_pd(_bv1_2, _res2, _bv1DotTv1CrossRotBv2);
+    _bv1DotTv1CrossRotBv2 =
+            _mm256_fmadd_pd(_bv1_3, _res3, _bv1DotTv1CrossRotBv2);
+
+    // bv1 cross rotBv2
+
+    _res1 = _mm256_mul_pd(_bv1_3, _b_2);
+    _res1 = _mm256_fmsub_pd(_bv1_2, _b_3, _res1);
+
+    _res2 = _mm256_mul_pd(_bv1_1, _b_3);
+    _res2 = _mm256_fmsub_pd(_bv1_3, _b_1, _res2);
+
+    _res3 = _mm256_mul_pd(_bv1_2, _b_1);
+    _res3 = _mm256_fmsub_pd(_bv1_1, _b_2, _res3);
+
+    _mm256_store_pd(g.data() + i * 4, _res1);
+    _mm256_store_pd(g.data() + 8 + i * 4, _res2);
+    _mm256_store_pd(g.data() + 16 + i * 4, _res3);
+
+    // bv1 dot rotTv2CrossBv2
+
+    _a_1 = _mm256_load_pd(rotTv2CrossBv2.data() + i * 4);
+    _a_2 = _mm256_load_pd(rotTv2CrossBv2.data() + 8 + i * 4);
+    _a_3 = _mm256_load_pd(rotTv2CrossBv2.data() + 16 + i * 4);
+
+    __m256d _bv1DotRotTv2CrossBv2 = _mm256_mul_pd(_bv1_1, _a_1);
+    _bv1DotRotTv2CrossBv2 =
+            _mm256_fmadd_pd(_bv1_2, _a_2, _bv1DotRotTv2CrossBv2);
+    _bv1DotRotTv2CrossBv2 =
+            _mm256_fmadd_pd(_bv1_3, _a_3, _bv1DotRotTv2CrossBv2);
+
+    _mm256_store_pd(
+            g.data() + 24 + i * 4,
+            _mm256_sub_pd(_bv1DotTv1CrossRotBv2, _bv1DotRotTv2CrossBv2));
+  }
+
+  return g * g.transpose();
+}

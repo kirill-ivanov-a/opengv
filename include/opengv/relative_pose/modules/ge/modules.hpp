@@ -164,6 +164,37 @@ Eigen::Matrix4d composeGwithJacobians(
     Eigen::Matrix4d & G_jac2,
     Eigen::Matrix4d & G_jac3 );
 
+Eigen::Vector2d getEigenvaluesFast(
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv1,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv2,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv1,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv2CrossBv2,
+    const cayley_t & cayley );
+
+double getCostFast(
+        const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv1,
+        const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv2,
+        const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv1,
+        const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv2CrossBv2,
+        const cayley_t & cayley,
+        int step );
+
+Eigen::Vector3d getJacobianFast(
+        const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv1,
+        const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv2,
+        const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv1,
+        const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv2CrossBv2,
+        const cayley_t & cayley,
+        double currentValue,
+        int step );
+
+Eigen::Matrix4d composeGFast(
+        const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv1,
+        const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv2,
+        const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv1,
+        const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv2CrossBv2,
+        const cayley_t & cayley );
+
 }
 }
 }

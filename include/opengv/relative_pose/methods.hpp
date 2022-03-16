@@ -438,6 +438,22 @@ rotation_t ge(
     bool useWeights = false );
 
 /**
+ * \brief Compute the rotation matrix between two non-central viewpoints as an
+ *        iterative eigenproblem. Outputs only the rotation. Fast version of GE.
+ *
+ * \param[in] adapter Visitor holding bearing-vector correspondences, the multi-
+ *                    camera configuration, plus the initial rotation for the
+ *                    optimization.
+ * \param[in] indices Indices of the correspondences used for deriving
+ *                    the rotation matrix.
+ * \return Rotation matrix from viewpoint 2 to viewpoint 1.
+ */
+rotation_t ge_fast(
+    const RelativeAdapterBase & adapter,
+    const std::vector<int> & indices,
+    geOutput_t & output );
+
+/**
  * \brief Compute the relative pose between two non-central viewpoints
  *        following Li's method [12]. Using all available correspondences.
  *

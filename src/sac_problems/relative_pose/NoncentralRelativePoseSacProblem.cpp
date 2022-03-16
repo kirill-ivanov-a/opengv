@@ -308,6 +308,11 @@ opengv::sac_problems::
         sampleSize = 8;
         break;
       }
+      case GE_FAST:
+      {
+        sampleSize = 8;
+        break;
+      }
       case SIXPT:
       {
         sampleSize = 6 + 3;

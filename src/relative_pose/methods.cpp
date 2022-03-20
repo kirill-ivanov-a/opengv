@@ -814,8 +814,8 @@ rotation_t ge_fast(
     geOutput_t & output )
 {
   int numberCorrespondences = static_cast<int>(indices.size());
-  assert(numberCorrespondences > 5);
-  assert(numberCorrespondences % 4 == 0);
+  // the solver only work with 8 correspondences
+  assert(numberCorrespondences == 8);
 
   Eigen::Vector3d pointsCenter1 = Eigen::Vector3d::Zero();
   Eigen::Vector3d pointsCenter2 = Eigen::Vector3d::Zero();
@@ -828,14 +828,14 @@ rotation_t ge_fast(
 
   for (auto i = 0; i < numberCorrespondences; ++i)
   {
-    bv1.block<3, 1>(0, i).noalias() = adapter.getCamRotation1(indices[i]) *
+    bv1.col(i).noalias() = adapter.getCamRotation1(indices[i]) *
                                       adapter.getBearingVector1(indices[i]);
-    bv2.block<3, 1>(0, i).noalias() = adapter.getCamRotation2(indices[i]) *
+    bv2.col(i).noalias() = adapter.getCamRotation2(indices[i]) *
                                     adapter.getBearingVector2(indices[i]);
-    tv1.block<3, 1>(0, i).noalias() = adapter.getCamOffset1(indices[i]);
-    tv2.block<3, 1>(0, i).noalias() = adapter.getCamOffset2(indices[i]);
-    pointsCenter1.noalias() += bv1.block<3, 1>(0, i);
-    pointsCenter2.noalias() += bv2.block<3, 1>(0, i);
+    tv1.col(i).noalias() = adapter.getCamOffset1(indices[i]);
+    tv2.col(i).noalias() = adapter.getCamOffset2(indices[i]);
+    pointsCenter1.noalias() += bv1.col(i) ;
+    pointsCenter2.noalias() += bv2.col(i) ;
   }
 
   for (auto i = 0; i < numberCorrespondences / 4; ++i)
@@ -869,8 +869,8 @@ rotation_t ge_fast(
   Hcross = Eigen::Matrix3d::Zero();
 
   for (auto i = 0; i < numberCorrespondences; ++i)
-    Hcross.noalias() += (bv2.block<3, 1>(0, i) - pointsCenter2) *
-                        (bv1.block<3, 1>(0, i) - pointsCenter1).transpose();
+    Hcross.noalias() += (bv2.col(i)  - pointsCenter2) *
+                        (bv1.col(i)  - pointsCenter1).transpose();
 
   // Do minimization
   modules::ge_main_fast(bv1, bv2, tv1, tv2CrossBv2,

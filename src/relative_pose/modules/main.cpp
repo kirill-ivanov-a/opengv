@@ -1115,6 +1115,7 @@ opengv::relative_pose::modules::ge_main_fast(
       while (nextEV > smallestEV)
       {
         lambda /= lambdaModifier;
+        if (lambda < minLambda) break;
         nextCayley = cayley + lambda * searchDirection;
         nextEV = ge::getCostFast(bv1, bv2, tv1, tv2CrossBv2, nextCayley, 1);
       }

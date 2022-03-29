@@ -1057,11 +1057,11 @@ opengv::relative_pose::modules::ge_main_fast(
     geOutput_t & output )
 {
   double lambda = 0.017;
-  double maxLambda = 0.07;
-  double minLambda = 0.00001;
+  const double kMaxLambda = 0.07;
+  const double kMinLambda = 0.00001;
   double lambdaModifier = 2.0;
-  int maxIterations = 11;
-  bool disableIncrements = false;
+  const int kMaxIterations = 11;
+  const bool kDisableIncrements = false;
 
   double disturbanceAmplitude = 0.3;
   bool found = false;
@@ -1084,7 +1084,7 @@ opengv::relative_pose::modules::ge_main_fast(
     jacobian.normalize();
     Eigen::Matrix3d inverseHessian = Eigen::Matrix3d::Identity();
 
-    while (iterations < maxIterations)
+    while (iterations < kMaxIterations)
     {
       Eigen::Vector3d searchDirection = -inverseHessian * jacobian;
       searchDirection.normalize();
@@ -1100,12 +1100,12 @@ opengv::relative_pose::modules::ge_main_fast(
 
       double nextEV = ge::getCostFast(bv1, bv2, tv1, tv2CrossBv2, nextCayley, 1);
 
-      if (iterations == 0 || !disableIncrements)
+      if (iterations == 0 || !kDisableIncrements)
       {
         while (nextEV < smallestEV)
         {
           smallestEV = nextEV;
-          if (lambda * lambdaModifier > maxLambda) break;
+          if (lambda * lambdaModifier > kMaxLambda) break;
           lambda *= lambdaModifier;
           nextCayley.noalias() = cayley + lambda * searchDirection;
           nextEV = ge::getCostFast(bv1, bv2, tv1, tv2CrossBv2, nextCayley, 1);
@@ -1115,7 +1115,7 @@ opengv::relative_pose::modules::ge_main_fast(
       while (nextEV > smallestEV)
       {
         lambda /= lambdaModifier;
-        if (lambda < minLambda) break;
+        if (lambda < kMinLambda) break;
         nextCayley = cayley + lambda * searchDirection;
         nextEV = ge::getCostFast(bv1, bv2, tv1, tv2CrossBv2, nextCayley, 1);
       }
@@ -1138,7 +1138,7 @@ opengv::relative_pose::modules::ge_main_fast(
       smallestEV = nextEV;
       jacobian = nextJacobian;
 
-      if (lambda < minLambda) break;
+      if (lambda < kMinLambda) break;
       ++iterations;
     }
 

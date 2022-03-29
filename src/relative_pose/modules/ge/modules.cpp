@@ -30,6 +30,7 @@
 
 
 #include <opengv/relative_pose/modules/ge/modules.hpp>
+#include <opengv/macros.hpp>
 #include <opengv/math/cayley.hpp>
 #include <iostream>
 
@@ -1143,6 +1144,7 @@ Eigen::Matrix4d opengv::relative_pose::modules::ge::composeGFast(
   Eigen::Matrix<double, 3, 8, Eigen::RowMajor> rotBv2 = R * bv2;
   Eigen::Matrix<double, 3, 8, Eigen::RowMajor> rotTv2CrossBv2 = R * tv2CrossBv2;
 
+#ifdef OPENGV_INTRINSICS_AVAILABLE
   Eigen::Matrix<double, 4, 8, Eigen::RowMajor> g;
   for (auto i = 0; i < 2; ++i) {
     __m256d _a_1 = _mm256_load_pd(tv1.data() + i * 4);
@@ -1206,6 +1208,16 @@ Eigen::Matrix4d opengv::relative_pose::modules::ge::composeGFast(
             g.data() + 24 + i * 4,
             _mm256_sub_pd(_bv1DotTv1CrossRotBv2, _bv1DotRotTv2CrossBv2));
   }
+#else
+  for (auto i = 0; i != 8; ++i) {
+    g.block<3, 1>(0, i) =
+        bv1.col(i).cross(rotBv2.col(i));
+    g(3, i) =
+        bv1.col(i).transpose() *
+        (tv1.col(i).cross(rotBv2.col(i)) -
+         rotTv2CrossBv2.col(i));
+  }
+#endif
 
   return g * g.transpose();
 }

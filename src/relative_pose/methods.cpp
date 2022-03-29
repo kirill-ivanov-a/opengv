@@ -36,6 +36,7 @@
 #include <Eigen/NumericalDiff>
 
 #include <opengv/OptimizationFunctor.hpp>
+#include <opengv/macros.hpp>
 #include <opengv/math/arun.hpp>
 #include <opengv/math/cayley.hpp>
 #include <opengv/relative_pose/modules/main.hpp>
@@ -813,7 +814,7 @@ rotation_t ge_fast(
     const Indices & indices,
     geOutput_t & output )
 {
-  int numberCorrespondences = static_cast<int>(indices.size());
+  const auto kNumberCorrespondences = static_cast<int>(indices.size());
   // the solver only work with 8 correspondences
   assert(numberCorrespondences == 8);
 
@@ -826,7 +827,7 @@ rotation_t ge_fast(
   Eigen::Matrix<double, 3, 8, RowMajor> tv2;
   Eigen::Matrix<double, 3, 8, RowMajor> tv2CrossBv2;
 
-  for (auto i = 0; i < numberCorrespondences; ++i)
+  for (auto i = 0; i < kNumberCorrespondences; ++i)
   {
     bv1.col(i).noalias() = adapter.getCamRotation1(indices[i]) *
                                       adapter.getBearingVector1(indices[i]);
@@ -837,8 +838,8 @@ rotation_t ge_fast(
     pointsCenter1.noalias() += bv1.col(i) ;
     pointsCenter2.noalias() += bv2.col(i) ;
   }
-
-  for (auto i = 0; i < numberCorrespondences / 4; ++i)
+#ifdef OPENGV_INTRINSICS_AVAILABLE
+  for (auto i = 0; i < kNumberCorrespondences / 4; ++i)
   {
     __m256d _tv1_1 = _mm256_load_pd(tv1.data() + i * 4);
     __m256d _tv1_2 = _mm256_load_pd(tv1.data() + 8 + i * 4);
@@ -861,16 +862,18 @@ rotation_t ge_fast(
     _mm256_store_pd(tv2CrossBv2.data() + 8 + i * 4, _res2);
     _mm256_store_pd(tv2CrossBv2.data() + 16 + i * 4, _res3);
   }
+#else
+  for (auto i = 0; i < kNumberCorrespondences; ++i) {
+    tv2CrossBv2.col(i).noalias() =
+        tv2.col(i).cross(bv2.col(i));
+  }
+#endif
 
-  pointsCenter1 = pointsCenter1 / numberCorrespondences;
-  pointsCenter2 = pointsCenter2 / numberCorrespondences;
+  pointsCenter1 = pointsCenter1 / kNumberCorrespondences;
+  pointsCenter2 = pointsCenter2 / kNumberCorrespondences;
 
-  Eigen::MatrixXd Hcross(3, 3);
-  Hcross = Eigen::Matrix3d::Zero();
-
-  for (auto i = 0; i < numberCorrespondences; ++i)
-    Hcross.noalias() += (bv2.col(i)  - pointsCenter2) *
-                        (bv1.col(i)  - pointsCenter1).transpose();
+  Eigen::MatrixXd Hcross = (bv2.colwise() - pointsCenter2) *
+                           (bv1.colwise() - pointsCenter1).transpose();;
 
   // Do minimization
   modules::ge_main_fast(bv1, bv2, tv1, tv2CrossBv2,

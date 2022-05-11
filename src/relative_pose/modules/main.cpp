@@ -899,7 +899,7 @@ opengv::relative_pose::modules::ge_main2(
   //-one idea is to check the gradient at the new sampling point, if that derives
   // too much, we have to stop
   //-another idea consists of having linear change of lambda, instead of exponential (safer, but slower)
-  
+
   double lambda = 0.01;
   double maxLambda = 0.08;
   double modifier = 2.0;
@@ -909,16 +909,16 @@ opengv::relative_pose::modules::ge_main2(
   bool print = false;
 
   cayley_t cayley;
-  
+
   double disturbanceAmplitude = 0.3;
   bool found = false;
   int randomTrialCount = 0;
-  
+
   while( !found && randomTrialCount < 5 )
   {
     if(randomTrialCount > 2)
       disturbanceAmplitude = 0.6;
-	
+
     if( randomTrialCount == 0 )
       cayley = startingPoint;
     else
@@ -930,31 +930,31 @@ opengv::relative_pose::modules::ge_main2(
       disturbance[2] = (((double) rand())/ ((double) RAND_MAX)-0.5)*2.0*disturbanceAmplitude;
       cayley += disturbance;
     }
-	
+
     lambda = 0.01;
     int iterations = 0;
     double smallestEV = ge::getCost(xxF,yyF,zzF,xyF,yzF,zxF,
         x1P,y1P,z1P,x2P,y2P,z2P,m11P,m12P,m22P,cayley,1);
-    
+
     while( iterations < maxIterations )
     {
       Eigen::Matrix<double,1,3> jacobian;
       ge::getQuickJacobian(xxF,yyF,zzF,xyF,yzF,zxF,
           x1P,y1P,z1P,x2P,y2P,z2P,m11P,m12P,m22P,cayley,smallestEV,jacobian,1);
-      
+
       double norm = sqrt(pow(jacobian[0],2.0) + pow(jacobian[1],2.0) + pow(jacobian[2],2.0));
       cayley_t normalizedJacobian = (1/norm) * jacobian.transpose();
-      
+
       cayley_t samplingPoint = cayley - lambda * normalizedJacobian;
       double samplingEV = ge::getCost(xxF,yyF,zzF,xyF,yzF,zxF,
           x1P,y1P,z1P,x2P,y2P,z2P,m11P,m12P,m22P,samplingPoint,1);
-      
+
       if(print)
       {
         std::cout << iterations << ": " << samplingPoint.transpose();
         std::cout << " lambda: " << lambda << " EV: " << samplingEV << std::endl;
       }
-      
+
       if( iterations == 0 || !disablingIncrements )
       {
         while( samplingEV < smallestEV )
@@ -966,7 +966,7 @@ opengv::relative_pose::modules::ge_main2(
           samplingPoint = cayley - lambda * normalizedJacobian;
           samplingEV = ge::getCost(xxF,yyF,zzF,xyF,yzF,zxF,
               x1P,y1P,z1P,x2P,y2P,z2P,m11P,m12P,m22P,samplingPoint,1);
-          
+
           if(print)
           {
             std::cout << iterations << ": " << samplingPoint.transpose();
@@ -974,32 +974,32 @@ opengv::relative_pose::modules::ge_main2(
           }
         }
       }
-      
+
       while( samplingEV > smallestEV )
       {
         lambda /= modifier;
         samplingPoint = cayley - lambda * normalizedJacobian;
         samplingEV = ge::getCost(xxF,yyF,zzF,xyF,yzF,zxF,
             x1P,y1P,z1P,x2P,y2P,z2P,m11P,m12P,m22P,samplingPoint,1);
-        
+
         if(print)
         {
           std::cout << iterations << ": " << samplingPoint.transpose();
           std::cout << " lambda: " << lambda << " EV: " << samplingEV << std::endl;
         }
       }
-      
+
       //apply update
       cayley = samplingPoint;
       smallestEV = samplingEV;
-      
+
       //stopping condition (check if the update was too small)
       if( lambda < min_xtol )
         break;
-      
+
       iterations++;
     }
-    
+
     //try to see if we can robustly identify each time we enter up in the wrong minimum
     if( cayley.norm() < 0.01 )
     {
@@ -1014,16 +1014,16 @@ opengv::relative_pose::modules::ge_main2(
     else
       found = true;
   }
-  
+
   Eigen::Matrix4d G = ge::composeG(xxF,yyF,zzF,xyF,yzF,zxF,
       x1P,y1P,z1P,x2P,y2P,z2P,m11P,m12P,m22P,cayley);
-  
+
   Eigen::EigenSolver< Eigen::Matrix4d > Eig(G,true);
   Eigen::Matrix<std::complex<double>,4,1> D_complex = Eig.eigenvalues();
   Eigen::Matrix<std::complex<double>,4,4> V_complex = Eig.eigenvectors();
   Eigen::Vector4d D;
   Eigen::Matrix4d V;
-  
+
   std::vector< myPair_ge > pairs;
   for(size_t i = 0; i < 4; i++) {
     myPair_ge newPair;
@@ -1037,11 +1037,136 @@ opengv::relative_pose::modules::ge_main2(
     D[i] = pairs[i].second;
     V.col(i) = pairs[i].first;
   }
-  
+
   double factor = V(3,3);
   Eigen::Vector4d t = (1.0/factor) * V.col(3);
-  
+
   output.translation = t;
+  output.rotation = math::cayley2rot(cayley);
+  output.eigenvalues = D;
+  output.eigenvectors = V;
+}
+
+void
+opengv::relative_pose::modules::ge_main_fast(
+    const Eigen::Matrix<double, 3, 8, RowMajor> & bv1,
+    const Eigen::Matrix<double, 3, 8, RowMajor> & bv2,
+    const Eigen::Matrix<double, 3, 8, RowMajor> & tv1,
+    const Eigen::Matrix<double, 3, 8, RowMajor> & tv2CrossBv2,
+    const cayley_t & startingPoint,
+    geOutput_t & output )
+{
+  double lambda = 0.017;
+  const double kMaxLambda = 0.07;
+  const double kMinLambda = 0.00001;
+  double lambdaModifier = 2.0;
+  const int kMaxIterations = 11;
+  const bool kDisableIncrements = false;
+
+  double disturbanceAmplitude = 0.3;
+  bool found = false;
+  int randomTrials = 0;
+  cayley_t cayley;
+
+  while (!found && randomTrials < 5)
+  {
+    int iterations = 0;
+    if (randomTrials > 2)
+      disturbanceAmplitude = 0.6;
+    cayley.noalias() = startingPoint;
+    if (randomTrials != 0)
+      cayley.noalias() += disturbanceAmplitude * Eigen::Vector3d::Random();
+
+    double smallestEV = ge::getCostFast(bv1, bv2, tv1, tv2CrossBv2, cayley, 1);
+
+    Eigen::Vector3d jacobian =
+        ge::getJacobianFast(bv1, bv2, tv1, tv2CrossBv2, cayley, smallestEV, 1);
+    jacobian.normalize();
+    Eigen::Matrix3d inverseHessian = Eigen::Matrix3d::Identity();
+
+    while (iterations < kMaxIterations)
+    {
+      Eigen::Vector3d searchDirection = -inverseHessian * jacobian;
+      searchDirection.normalize();
+
+      if (jacobian.dot(searchDirection) > 0)
+      {
+        inverseHessian = Matrix3d::Identity();
+        searchDirection = -jacobian;
+      }
+
+      lambda = 0.017;
+      cayley_t nextCayley = cayley + lambda * searchDirection;
+
+      double nextEV = ge::getCostFast(bv1, bv2, tv1, tv2CrossBv2, nextCayley, 1);
+
+      if (iterations == 0 || !kDisableIncrements)
+      {
+        while (nextEV < smallestEV)
+        {
+          smallestEV = nextEV;
+          if (lambda * lambdaModifier > kMaxLambda) break;
+          lambda *= lambdaModifier;
+          nextCayley.noalias() = cayley + lambda * searchDirection;
+          nextEV = ge::getCostFast(bv1, bv2, tv1, tv2CrossBv2, nextCayley, 1);
+        }
+      }
+
+      while (nextEV > smallestEV)
+      {
+        lambda /= lambdaModifier;
+        if (lambda < kMinLambda) break;
+        nextCayley = cayley + lambda * searchDirection;
+        nextEV = ge::getCostFast(bv1, bv2, tv1, tv2CrossBv2, nextCayley, 1);
+      }
+
+      Eigen::Vector3d nextJacobian = ge::getJacobianFast(
+          bv1, bv2, tv1, tv2CrossBv2, nextCayley, nextEV, 1);
+      nextJacobian.normalize();
+
+      const Eigen::Vector3d s = lambda * searchDirection;
+      const Eigen::Vector3d y = nextJacobian - jacobian;
+      const double rho = 1.0 / (y.dot(s));
+
+      inverseHessian =
+          inverseHessian -
+          rho * (s * (y.transpose() * inverseHessian) +
+          (inverseHessian * y) * s.transpose()) +
+          rho * (rho * (y).dot(inverseHessian * y) + 1) * (s * s.transpose());
+
+      cayley = nextCayley;
+      smallestEV = nextEV;
+      jacobian = nextJacobian;
+
+      if (lambda < kMinLambda) break;
+      ++iterations;
+    }
+
+    if (cayley.norm() < 0.01)
+    {
+        // we are close to the origin, test the EV 2
+      double ev2 =
+          ge::getCostFast(bv1, bv2, tv1, tv2CrossBv2, cayley, 0);
+      if (ev2 > 0.001)
+        randomTrials++;
+      else
+        found = true;
+    }
+    else
+      found = true;
+  }
+
+  Eigen::Matrix4d G =
+      ge::composeGFast(bv1, bv2, tv1, tv2CrossBv2, cayley);
+
+  Eigen::EigenSolver<Eigen::Matrix4d> eigenSolverG(G, true);
+  Eigen::Vector4d D = eigenSolverG.eigenvalues().real();
+  Eigen::Matrix4d V = eigenSolverG.eigenvectors().real();
+
+  auto minEigenvalueIdx = 0;
+  D.minCoeff(&minEigenvalueIdx);
+
+  output.translation = V.col(minEigenvalueIdx) / V(3, minEigenvalueIdx);
   output.rotation = math::cayley2rot(cayley);
   output.eigenvalues = D;
   output.eigenvectors = V;

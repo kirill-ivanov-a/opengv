@@ -63,6 +63,15 @@ opengv::sac_problems::
         outModel.col(3) = output2.translation.block<3,1>(0,0);
         break;
       }
+      case GE_FAST:
+      {
+        geOutput_t output2;
+        opengv::relative_pose::ge_fast(_adapter, indices, output2);
+
+        outModel.block<3, 3>(0, 0) = output2.rotation;
+        outModel.col(3) = output2.translation.block<3, 1>(0, 0);
+        break;
+      }
       case SIXPT:
       {
         std::vector<int> indices6;
@@ -295,6 +304,11 @@ opengv::sac_problems::
         break;
       }
       case GE:
+      {
+        sampleSize = 8;
+        break;
+      }
+      case GE_FAST:
       {
         sampleSize = 8;
         break;

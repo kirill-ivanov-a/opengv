@@ -36,6 +36,7 @@
 #include <Eigen/NumericalDiff>
 
 #include <opengv/OptimizationFunctor.hpp>
+#include <opengv/macros.hpp>
 #include <opengv/math/arun.hpp>
 #include <opengv/math/cayley.hpp>
 #include <opengv/relative_pose/modules/main.hpp>
@@ -808,6 +809,79 @@ rotation_t ge(
   return output.rotation;
 }
 
+rotation_t ge_fast(
+    const RelativeAdapterBase & adapter,
+    const Indices & indices,
+    geOutput_t & output )
+{
+  const auto kNumberCorrespondences = static_cast<int>(indices.size());
+  // the solver only work with 8 correspondences
+  assert(numberCorrespondences == 8);
+
+  Eigen::Vector3d pointsCenter1 = Eigen::Vector3d::Zero();
+  Eigen::Vector3d pointsCenter2 = Eigen::Vector3d::Zero();
+
+  Eigen::Matrix<double, 3, 8, RowMajor> bv1;
+  Eigen::Matrix<double, 3, 8, RowMajor> bv2;
+  Eigen::Matrix<double, 3, 8, RowMajor> tv1;
+  Eigen::Matrix<double, 3, 8, RowMajor> tv2;
+  Eigen::Matrix<double, 3, 8, RowMajor> tv2CrossBv2;
+
+  for (auto i = 0; i < kNumberCorrespondences; ++i)
+  {
+    bv1.col(i).noalias() = adapter.getCamRotation1(indices[i]) *
+                                      adapter.getBearingVector1(indices[i]);
+    bv2.col(i).noalias() = adapter.getCamRotation2(indices[i]) *
+                                    adapter.getBearingVector2(indices[i]);
+    tv1.col(i).noalias() = adapter.getCamOffset1(indices[i]);
+    tv2.col(i).noalias() = adapter.getCamOffset2(indices[i]);
+    pointsCenter1.noalias() += bv1.col(i) ;
+    pointsCenter2.noalias() += bv2.col(i) ;
+  }
+#ifdef OPENGV_INTRINSICS_AVAILABLE
+  for (auto i = 0; i < kNumberCorrespondences / 4; ++i)
+  {
+    __m256d _tv2_1 = _mm256_load_pd(tv2.data() + i * 4);
+    __m256d _tv2_2 = _mm256_load_pd(tv2.data() + 8 + i * 4);
+    __m256d _tv2_3 = _mm256_load_pd(tv2.data() + 16 + i * 4);
+
+    __m256d _bv2_1 = _mm256_load_pd(bv2.data() + i * 4);
+    __m256d _bv2_2 = _mm256_load_pd(bv2.data() + 8 + i * 4);
+    __m256d _bv2_3 = _mm256_load_pd(bv2.data() + 16 + i * 4);
+
+    __m256d _res1 = _mm256_mul_pd(_tv2_3, _bv2_2);
+    _res1 = _mm256_fmsub_pd(_tv2_2, _bv2_3, _res1);
+
+    __m256d _res2 = _mm256_mul_pd(_tv2_1, _bv2_3);
+    _res2 = _mm256_fmsub_pd(_tv2_3, _bv2_1, _res2);
+
+    __m256d _res3 = _mm256_mul_pd(_tv2_2, _bv2_1);
+    _res3 = _mm256_fmsub_pd(_tv2_1, _bv2_2, _res3);
+
+    _mm256_store_pd(tv2CrossBv2.data() + i * 4, _res1);
+    _mm256_store_pd(tv2CrossBv2.data() + 8 + i * 4, _res2);
+    _mm256_store_pd(tv2CrossBv2.data() + 16 + i * 4, _res3);
+  }
+#else
+  for (auto i = 0; i < kNumberCorrespondences; ++i) {
+    tv2CrossBv2.col(i).noalias() =
+        tv2.col(i).cross(bv2.col(i));
+  }
+#endif
+
+  pointsCenter1 = pointsCenter1 / kNumberCorrespondences;
+  pointsCenter2 = pointsCenter2 / kNumberCorrespondences;
+
+  Eigen::MatrixXd Hcross = (bv2.colwise() - pointsCenter2) *
+                           (bv1.colwise() - pointsCenter1).transpose();;
+
+  // Do minimization
+  modules::ge_main_fast(bv1, bv2, tv1, tv2CrossBv2,
+                        math::rot2cayley(math::arun(Hcross)), output);
+
+  return output.rotation;
+}
+
 }
 }
 
@@ -849,6 +923,16 @@ opengv::relative_pose::ge(
   geOutput_t output;
   //output.rotation = adapter.getR12(); //finding starting value using arun
   return ge(adapter,indices,output,useWeights);
+}
+
+opengv::rotation_t
+opengv::relative_pose::ge_fast(
+    const RelativeAdapterBase & adapter,
+    const std::vector<int> & indices,
+    geOutput_t &output )
+{
+  Indices idx(indices);
+  return ge_fast(adapter, idx, output);
 }
 
 namespace opengv

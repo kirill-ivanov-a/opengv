@@ -102,6 +102,13 @@ void ge_main2(
     const Eigen::Matrix<double,9,9> & m22P,
     const cayley_t & startingPoint,
     geOutput_t & output );
+void ge_main_fast(
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv1,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & bv2,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv1,
+    const Eigen::Matrix<double, 3, 8, Eigen::RowMajor> & tv2CrossBv2,
+    const cayley_t & startingPoint,
+    geOutput_t & output );
 void ge_plot(
     const Eigen::Matrix3d & xxF,
     const Eigen::Matrix3d & yyF,
